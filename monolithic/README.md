@@ -79,52 +79,9 @@ docker buildx build --platform linux/amd64,linux/arm64 \
 
 ## Deploying to ACM Cluster
 
-### Prerequisites
-- OpenShift cluster with ACM installed
-- MultiClusterHub created in `open-cluster-management` namespace (it can take several minutes before all components are started)
-- Quay pull secret for `ccxdev/insights-on-premise-poc` repository saved as `deploy/ccxdev-insights-on-prem-poc-secret.yml`
-- (optional) Have Multicluster Observability Operator deployed according to [these instructions](https://github.com/stolostron/multicluster-observability-operator/tree/main?tab=readme-ov-file#run-the-operator-in-the-cluster) - required for upgrade risk predictions
+The recommended deployment method is the ACM addon — see **[monolithic/addon/README.md](addon/README.md)** for full instructions.
 
-### Deploy
-
-```bash
-./deploy.sh
-```
-
-This script:
-1. Creates `insights-on-prem-poc` namespace
-2. Deploys PostgreSQL database
-3. Deploys the application and service
-4. Configures `insights-operator` to upload archives to the on-premise service
-5. Pauses MultiClusterHub operator and configures `insights-client` to use the on-premise backend
-
-#### Secrets
-
-The postgres password is stored in the secret `insights-postgres` in the `insights-on-prem-poc` namespace, defined in `deploy/postgres.yml`. Note that this is not the best practice, so please use the preferred method on your cluster to define the secret. We kept it there to make it easier to deploy the application with a single script and no human intervention.
-
-### Verify Deployment
-
-```bash
-# Check pod status
-oc get pods -n insights-on-prem-poc
-
-# Check service
-oc get svc -n insights-on-prem-poc
-
-# Verify insights-client configuration
-oc get deployment insights-client -n open-cluster-management -o yaml | grep -A2 'name: CCX_SERVER'
-
-# Check logs
-oc logs -f deployment/insights-on-prem -n insights-on-prem-poc
-```
-
-### Important Notes
-
-- **MultiClusterHub operator is paused** after deployment (annotation `mch-pause=true`) to prevent it from reverting the `CCX_SERVER` configuration.
-- To unpause the operator:
-  ```bash
-  oc annotate multiclusterhub multiclusterhub -n open-cluster-management mch-pause- --overwrite
-  ```
+The addon deploys the app via the ACM addon framework and handles all configuration (insights-operator redirect, recommendations routing, upgrade risk predictions) automatically via ConfigurationPolicies with no manual steps.
 
 ## How to trigger an Insights recommendation
 

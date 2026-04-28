@@ -1,2 +1,4 @@
 __pycache__/
 monolithic/deploy/ccxdev-insights-on-prem-poc-secret.yml
+monolithic/addon/ccxdev-insights-on-prem-poc-secret.yml
+monolithic/addon/ccxdev-insights-on-prem-poc-secret-ocm.yml

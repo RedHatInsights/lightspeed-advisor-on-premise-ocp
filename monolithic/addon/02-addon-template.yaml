@@ -1,0 +1,232 @@
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: AddOnTemplate
+metadata:
+  name: insights-on-prem
+spec:
+  addonName: insights-on-prem
+  agentSpec:
+    workload:
+      manifests:
+
+        # ── Namespace ──────────────────────────────────────────────────────────
+        - apiVersion: v1
+          kind: Namespace
+          metadata:
+            name: insights-on-prem
+            labels:
+              app: insights-on-prem
+
+        # ── App service account & RBAC ─────────────────────────────────────────
+        - apiVersion: v1
+          kind: ServiceAccount
+          metadata:
+            name: insights-on-prem
+            namespace: insights-on-prem
+
+        - apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRole
+          metadata:
+            name: insights-on-prem-metrics-reader
+          rules:
+            - apiGroups: [""]
+              resources: ["namespaces"]
+              verbs: ["get"]
+            - apiGroups: ["cluster.open-cluster-management.io"]
+              resources: ["managedclusters/metrics"]
+              verbs: ["get"]
+
+        - apiVersion: rbac.authorization.k8s.io/v1
+          kind: ClusterRoleBinding
+          metadata:
+            name: insights-on-prem-metrics-reader
+          roleRef:
+            apiGroup: rbac.authorization.k8s.io
+            kind: ClusterRole
+            name: insights-on-prem-metrics-reader
+          subjects:
+            - kind: ServiceAccount
+              name: insights-on-prem
+              namespace: insights-on-prem
+
+        # ── PostgreSQL ─────────────────────────────────────────────────────────
+        - apiVersion: v1
+          kind: Secret
+          metadata:
+            name: insights-postgres
+            namespace: insights-on-prem
+          type: Opaque
+          stringData:
+            # TODO: hardcoded placeholder credentials — production deployments should use
+            # externally-managed secrets. See https://issues.redhat.com/browse/CCXDEV-15638
+            database-user: insights
+            database-password: insights
+            database-name: insights
+
+        - apiVersion: v1
+          kind: PersistentVolumeClaim
+          metadata:
+            name: insights-postgres
+            namespace: insights-on-prem
+          spec:
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi
+
+        - apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: insights-postgres
+            namespace: insights-on-prem
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: insights-postgres
+            template:
+              metadata:
+                labels:
+                  app: insights-postgres
+              spec:
+                containers:
+                  - name: postgres
+                    image: registry.redhat.io/rhel9/postgresql-16
+                    ports:
+                      - containerPort: 5432
+                        name: postgres
+                        protocol: TCP
+                    env:
+                      - name: POSTGRESQL_USER
+                        valueFrom:
+                          secretKeyRef:
+                            name: insights-postgres
+                            key: database-user
+                      - name: POSTGRESQL_PASSWORD
+                        valueFrom:
+                          secretKeyRef:
+                            name: insights-postgres
+                            key: database-password
+                      - name: POSTGRESQL_DATABASE
+                        valueFrom:
+                          secretKeyRef:
+                            name: insights-postgres
+                            key: database-name
+                    volumeMounts:
+                      - name: data
+                        mountPath: /var/lib/pgsql/data
+                volumes:
+                  - name: data
+                    persistentVolumeClaim:
+                      claimName: insights-postgres
+
+        - apiVersion: v1
+          kind: Service
+          metadata:
+            name: insights-postgres
+            namespace: insights-on-prem
+          spec:
+            selector:
+              app: insights-postgres
+            ports:
+              - protocol: TCP
+                port: 5432
+                targetPort: 5432
+                name: postgres
+            type: ClusterIP
+
+        # ── App deployment ─────────────────────────────────────────────────────
+        - apiVersion: apps/v1
+          kind: Deployment
+          metadata:
+            name: insights-on-prem
+            namespace: insights-on-prem
+          spec:
+            replicas: 1
+            selector:
+              matchLabels:
+                app: insights-on-prem
+            template:
+              metadata:
+                labels:
+                  app: insights-on-prem
+              spec:
+                serviceAccountName: insights-on-prem
+                containers:
+                  - name: insights-on-prem
+                    image: quay.io/ccxdev/insights-on-premise-poc:latest
+                    ports:
+                      - containerPort: 8000
+                        name: http
+                        protocol: TCP
+                    env:
+                      - name: POSTGRES_HOST
+                        value: insights-postgres
+                      - name: POSTGRES_PORT
+                        value: "5432"
+                      - name: POSTGRES_USER
+                        valueFrom:
+                          secretKeyRef:
+                            name: insights-postgres
+                            key: database-user
+                      - name: POSTGRES_PASSWORD
+                        valueFrom:
+                          secretKeyRef:
+                            name: insights-postgres
+                            key: database-password
+                      - name: POSTGRES_DB
+                        valueFrom:
+                          secretKeyRef:
+                            name: insights-postgres
+                            key: database-name
+                      # PoC only: query Thanos at current time so upgrade risk predictions
+                      # are visible immediately on a fresh cluster. Remove for production
+                      # deployments where a 60-minute lookback is more appropriate.
+                      - name: THANOS_QUERY_LOOKBACK_MINUTES
+                        value: "0"
+                imagePullSecrets:
+                  - name: ccxdev-insights-on-prem-poc-pull-secret
+
+        - apiVersion: v1
+          kind: Service
+          metadata:
+            name: insights-on-prem
+            namespace: insights-on-prem
+          spec:
+            selector:
+              app: insights-on-prem
+            ports:
+              - protocol: TCP
+                port: 8000
+                targetPort: 8000
+                name: http
+            type: ClusterIP
+
+        - apiVersion: route.openshift.io/v1
+          kind: Route
+          metadata:
+            name: insights-on-prem
+            namespace: insights-on-prem
+          spec:
+            to:
+              kind: Service
+              name: insights-on-prem
+            port:
+              targetPort: http
+            tls:
+              termination: edge
+              insecureEdgeTerminationPolicy: Redirect
+
+        # ── Insights operator redirect ─────────────────────────────────────────
+        - apiVersion: v1
+          kind: ConfigMap
+          metadata:
+            name: insights-config
+            namespace: openshift-insights
+          data:
+            config.yaml: |
+              dataReporting:
+                uploadEndpoint: http://insights-on-prem.insights-on-prem.svc.cluster.local:8000/api/ingress/v1/upload
+                downloadEndpoint: http://insights-on-prem.insights-on-prem.svc.cluster.local:8000/api/v2/cluster/%s/reports
+                interval: 0h1m0s
+

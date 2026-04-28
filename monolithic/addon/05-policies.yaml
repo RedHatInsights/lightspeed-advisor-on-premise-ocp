@@ -1,0 +1,252 @@
+# ConfigurationPolicies targeting local-cluster via insights-on-prem-placement.
+#
+# Prerequisite: create ccxdev-insights-on-prem-poc-pull-secret in insights-on-prem namespace:
+#   kubectl apply -f ccxdev-insights-on-prem-poc-secret.yml        # for the app image only
+
+---
+
+# Allows the PlacementBinding below to select clusters from the global cluster set.
+apiVersion: cluster.open-cluster-management.io/v1beta2
+kind: ManagedClusterSetBinding
+metadata:
+  name: global
+  namespace: insights-on-prem
+spec:
+  clusterSet: global
+
+---
+
+# Placement used by the PlacementBinding — targets local-cluster only.
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: insights-on-prem-policies
+  namespace: insights-on-prem
+spec:
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchLabels:
+            local-cluster: "true"
+
+---
+
+# Pauses MCH to prevent it from reverting any of the settings below.
+# Remove once the upstream fixes ship in an official ACM release.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: insights-on-prem-mch-pause
+  namespace: insights-on-prem
+  annotations:
+    policy.open-cluster-management.io/standards: ""
+    policy.open-cluster-management.io/categories: ""
+    policy.open-cluster-management.io/controls: ""
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: insights-on-prem-mch-pause
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: operator.open-cluster-management.io/v1
+                kind: MultiClusterHub
+                metadata:
+                  name: multiclusterhub
+                  namespace: open-cluster-management
+                  annotations:
+                    installer.open-cluster-management.io/pause: "true"
+
+---
+
+# Pins the ACM console to latest-2.17 which supports UPGRADE_RISKS_PREDICTION_URL (CCXDEV-16237 / stolostron/console#6021).
+# Sets the URL dynamically from the on-prem route via hub template in console-config ConfigMap.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: insights-on-prem-console
+  namespace: insights-on-prem
+  annotations:
+    policy.open-cluster-management.io/standards: ""
+    policy.open-cluster-management.io/categories: ""
+    policy.open-cluster-management.io/controls: ""
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: insights-on-prem-console
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: console-config
+                  namespace: open-cluster-management
+                data:
+                  UPGRADE_RISKS_PREDICTION_URL: 'https://{{hub (lookup "route.openshift.io/v1" "Route" "insights-on-prem" "insights-on-prem").spec.host hub}}/api/insights-results-aggregator/v2/upgrade-risks-prediction'
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: console-chart-console-v2
+                  namespace: open-cluster-management
+                spec:
+                  template:
+                    spec:
+                      containers:
+                        - name: console
+                          image: quay.io/stolostron/console:latest-2.17
+
+---
+
+# Redirects insights-client to the on-prem service instead of console.redhat.com.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: insights-on-prem-insights-client
+  namespace: insights-on-prem
+  annotations:
+    policy.open-cluster-management.io/standards: ""
+    policy.open-cluster-management.io/categories: ""
+    policy.open-cluster-management.io/controls: ""
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: insights-on-prem-insights-client
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: apps/v1
+                kind: Deployment
+                metadata:
+                  name: insights-client
+                  namespace: open-cluster-management
+                spec:
+                  template:
+                    spec:
+                      containers:
+                        - name: client
+                          env:
+                            - name: CCX_SERVER
+                              value: http://insights-on-prem.insights-on-prem.svc.cluster.local:8000/api/v2
+                            - name: POLL_INTERVAL
+                              value: "1"
+
+---
+
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: insights-on-prem-policies
+  namespace: insights-on-prem
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: insights-on-prem-policies
+subjects:
+  - apiGroup: policy.open-cluster-management.io
+    kind: Policy
+    name: insights-on-prem-mch-pause
+  - apiGroup: policy.open-cluster-management.io
+    kind: Policy
+    name: insights-on-prem-console
+  - apiGroup: policy.open-cluster-management.io
+    kind: Policy
+    name: insights-on-prem-insights-client
+
+---
+
+# Placement targeting spoke managed clusters that opt in via label insights-on-prem=true.
+# To redirect a spoke cluster: kubectl label managedcluster <name> insights-on-prem=true
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: insights-on-prem-spokes
+  namespace: insights-on-prem
+spec:
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchLabels:
+            insights-on-prem: "true"
+
+---
+
+# Redirects insights-operator on opted-in spoke clusters to the on-prem service.
+# Uses hub templates to resolve the external route hostname dynamically.
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: insights-on-prem-spoke-redirect
+  namespace: insights-on-prem
+  annotations:
+    policy.open-cluster-management.io/standards: ""
+    policy.open-cluster-management.io/categories: ""
+    policy.open-cluster-management.io/controls: ""
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: insights-on-prem-spoke-redirect
+        spec:
+          remediationAction: enforce
+          severity: low
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: insights-config
+                  namespace: openshift-insights
+                data:
+                  config.yaml: |
+                    dataReporting:
+                      uploadEndpoint: https://{{hub (lookup "route.openshift.io/v1" "Route" "insights-on-prem" "insights-on-prem").spec.host hub}}/api/ingress/v1/upload
+                      downloadEndpoint: https://{{hub (lookup "route.openshift.io/v1" "Route" "insights-on-prem" "insights-on-prem").spec.host hub}}/api/v2/cluster/%s/reports
+                      interval: 0h1m0s
+
+---
+
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: insights-on-prem-spoke-policies
+  namespace: insights-on-prem
+placementRef:
+  apiGroup: cluster.open-cluster-management.io
+  kind: Placement
+  name: insights-on-prem-spokes
+subjects:
+  - apiGroup: policy.open-cluster-management.io
+    kind: Policy
+    name: insights-on-prem-spoke-redirect

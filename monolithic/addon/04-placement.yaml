@@ -1,0 +1,11 @@
+apiVersion: cluster.open-cluster-management.io/v1beta1
+kind: Placement
+metadata:
+  name: insights-on-prem
+  namespace: open-cluster-management-insights
+spec:
+  predicates:
+    - requiredClusterSelector:
+        labelSelector:
+          matchLabels:
+            local-cluster: "true"

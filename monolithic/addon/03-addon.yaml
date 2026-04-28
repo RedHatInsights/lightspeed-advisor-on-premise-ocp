@@ -1,0 +1,20 @@
+apiVersion: addon.open-cluster-management.io/v1alpha1
+kind: ClusterManagementAddOn
+metadata:
+  name: insights-on-prem
+  annotations:
+    addon.open-cluster-management.io/lifecycle: addon-manager
+spec:
+  addOnMeta:
+    displayName: Insights On-Prem
+    description: Red Hat Insights on-premise archive processing and reporting
+  supportedConfigs:
+    - group: addon.open-cluster-management.io
+      resource: addontemplates
+      defaultConfig:
+        name: insights-on-prem
+  installStrategy:
+    type: Placements
+    placements:
+      - name: insights-on-prem
+        namespace: open-cluster-management-insights
