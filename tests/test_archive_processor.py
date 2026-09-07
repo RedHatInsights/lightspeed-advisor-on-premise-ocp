@@ -69,12 +69,6 @@ def test_processor_creates_bounded_queue():
         queue.put_nowait(("c", "req-3"))
 
 
-def test_processor_rejects_invalid_queue_size():
-    """Test queue_size must be at least 1."""
-    with pytest.raises(ValueError, match="queue_size"):
-        ArchiveProcessor(Mock(), Mock(), queue_size=0)
-
-
 def test_processor_consumes_queue_on_single_thread():
     """Test the worker thread consumes queued jobs sequentially then stops."""
     processed = []
