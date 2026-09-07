@@ -1,11 +1,18 @@
 # FastAPI and web framework
 fastapi>=0.109.0
-uvicorn[standard]>=0.27.0
+# Plain uvicorn (not uvicorn[standard]): the app drives uvicorn programmatically
+# (uvicorn.Config/Server in app/main.py) and uses none of the [standard] extras.
+# [standard] pulls in four compiled wheels — uvloop, httptools, watchfiles and
+# websockets — none of which we need. uvicorn itself is pure Python.
+uvicorn>=0.27.0
 python-multipart>=0.0.6
 
 # Database
 sqlalchemy>=2.0.0
-psycopg[binary]>=3.3.5
+# psycopg2 is NOT installed from pip here: it ships as the python3.12-psycopg2
+# RPM (with libpq) — see rpms.in.yaml. SQLAlchemy's default driver for a plain
+# "postgresql://" URL (app/config.py) is psycopg2, so no code change is needed.
+# This avoids the compiled psycopg-binary wheel entirely.
 alembic>=1.13.0
 
 # Insights-core and CCX packages
@@ -22,7 +29,12 @@ httpx>=0.25.0
 
 # Configuration and utilities
 pydantic>=2.5.0
-pyyaml>=6.0.0
+# PyYAML is NOT installed from pip here (nor is charset-normalizer, a transitive
+# dep of requests): both already ship in the base image's /opt/venv, so their pip
+# wheels would be redundant. They are excluded from requirements.txt via
+# --no-emit-package in scripts/update_requirements.sh to keep the compiled wheels
+# out of the hermetic prefetch entirely; the runtime imports resolve against the
+# base venv copies.
 
 # Testing
 pytest>=7.4.0

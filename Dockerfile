@@ -8,8 +8,25 @@ ENV HOME=/app \
 
 WORKDIR /app
 
+# Install the PostgreSQL driver as an RPM (python3.12-psycopg2, + libpq) rather
+# than the compiled psycopg-binary wheel. psycopg2 is SQLAlchemy's default driver
+# for the plain "postgresql://" URL used in app/config.py, so no code change is
+# needed. The RPM modules land in /usr/lib*/python3.12/site-packages, so the venv
+# (whose pyvenv.cfg ships with include-system-site-packages=false) must be told
+# to see the system site-packages. In the hermetic Konflux build these RPMs come
+# from the Hermeto prefetch (rpms.lock.yaml); see the "rpm" prefetch in
+# .tekton/*.yaml.
+#
+# Other formerly-compiled deps need no RPM here: PyYAML, charset-normalizer,
+# markupsafe and msgpack already ship in the base image's /opt/venv, and dropping
+# uvicorn[standard]/psycopg[binary] from requirements-in.txt removed the uvloop /
+# httptools / watchfiles / websockets / psycopg-binary wheels outright.
 # hadolint ignore=DL3041
-RUN /opt/venv/bin/pip install --no-cache-dir -U pip setuptools wheel && \
+RUN microdnf install --nodocs -y python3.12-psycopg2 && \
+    microdnf clean all && \
+    sed -i 's/^include-system-site-packages = false$/include-system-site-packages = true/' \
+        /opt/venv/pyvenv.cfg && \
+    /opt/venv/bin/pip install --no-cache-dir -U pip setuptools wheel && \
     mkdir -p /tmp/insights-uploads && chmod 777 /tmp/insights-uploads
 
 COPY requirements.txt .

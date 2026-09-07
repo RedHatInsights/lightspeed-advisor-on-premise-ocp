@@ -39,6 +39,7 @@ Insights on Premise aims to provide recommendations based on Insights archives i
   - [Running Locally with Docker Compose](#running-locally-with-docker-compose)
   - [Hermetic Builds](#hermetic-builds)
     - [Regenerating requirements.txt](#regenerating-requirementstxt)
+    - [Regenerating rpms.lock.yaml](#regenerating-rpmslockyaml)
   - [Building and Pushing Multiarch Image](#building-and-pushing-multiarch-image)
   - [License](#license)
 
@@ -438,7 +439,16 @@ For purposes of running the addon locally without need for the cluster, we maint
 
 ## Hermetic Builds
 
-The Dockerfile is built hermetically by Konflux (network access disabled during the build), using [Hermeto](https://hermetoproject.github.io/hermeto/) to prefetch pip dependencies beforehand. See `requirements-in.txt` (source compiled by `uv`) and `requirements.txt` (fully-pinned, hashed pip lockfile). No RPMs are prefetched: the Dockerfile installs no RPMs, and Python dependencies are prefetched as binary wheels (see the `binary` filter in `.tekton/*.yaml`) rather than built from source.
+The Dockerfile is built hermetically by Konflux (network access disabled during the build), using [Hermeto](https://hermetoproject.github.io/hermeto/) to prefetch both pip and RPM dependencies beforehand. See `requirements-in.txt` (source compiled by `uv`), `requirements.txt` (fully-pinned, hashed pip lockfile), and `rpms.in.yaml`/`rpms.lock.yaml` (RPM lockfile).
+
+Python dependencies are prefetched as **wheels wherever they are pure-Python**, and compiled dependencies are avoided where a non-wheel form exists:
+
+- **From RPM:** the PostgreSQL driver ships as `python3.12-psycopg2` (+ `libpq`) instead of the compiled `psycopg-binary` wheel. SQLAlchemy's default driver for the plain `postgresql://` URL (see `app/config.py`) is psycopg2, so no code change is needed. RPM modules install into `/usr/lib*/python3.12/site-packages`, so the Dockerfile flips `include-system-site-packages=true` in `/opt/venv/pyvenv.cfg` to make them visible to the venv.
+- **Dropped extras:** using plain `uvicorn` (not `uvicorn[standard]`) removes the compiled `uvloop`, `httptools`, `watchfiles` and `websockets` wheels — the app drives uvicorn programmatically and uses none of them.
+- **Already in the base image:** `PyYAML`, `charset-normalizer`, `markupsafe` and `msgpack` are pre-installed in the base image's `/opt/venv`, so they are excluded from `requirements.txt` (via `--no-emit-package`) rather than re-fetched.
+- **Unavoidable compiled wheels:** `pydantic-core` (Rust; required by Pydantic v2 / FastAPI) and `greenlet` (a SQLAlchemy dependency on x86_64) have no RHEL/UBI RPM and no pure-Python form, so they remain binary wheels. `coverage` is a test-only compiled wheel.
+
+Every RPM in `rpms.in.yaml` (currently just `python3.12-psycopg2` and its `libpq` dependency) lives in the **public UBI 9 repos**, so regenerating and prefetching them needs **no Red Hat entitlement** (no `subscription-manager` / activation key).
 
 ### Regenerating requirements.txt
 
@@ -458,6 +468,33 @@ uv pip compile requirements-in.txt --generate-hashes \
 `requirements-build.txt`: the Hermeto pip prefetch is configured to prefer binary wheels
 (the `binary` filter in `.tekton/*.yaml`), so dependencies are prefetched as wheels rather
 than built from source, and no build-backend lockfile is required.
+
+The `--no-emit-package` flags in `scripts/update_requirements.sh` drop `pyyaml` and
+`charset-normalizer` from the lockfile because the base image already provides them; add a
+flag there if you move another dependency to an RPM or find it already present in the base
+`/opt/venv`.
+
+### Regenerating rpms.lock.yaml
+
+To change the set of RPM-sourced dependencies, edit `rpms.in.yaml`, then regenerate
+`rpms.lock.yaml` with the helper. It must run **inside a `linux/amd64` UBI9 container**
+(for the target arch and `skopeo`); every package resolves from the public UBI CDN, so no
+entitlement is needed — only `scripts/.dockerconfig.json` (a `registry.redhat.io` pull
+secret) so `skopeo` can inspect the base image:
+
+```bash
+# scripts/.dockerconfig.json = your registry.redhat.io pull secret
+# (e.g. cp ~/.config/containers/auth.json scripts/.dockerconfig.json)
+podman run --rm --platform linux/amd64 \
+  -v "$(pwd):/work:Z" -w /work \
+  registry.access.redhat.com/ubi9/ubi \
+  bash scripts/update_rpm_lockfile.sh
+```
+
+`rpms.in.yaml`'s `context.image` must be kept in sync with the Dockerfile's `FROM` tag:
+`rpm-lockfile-prototype` resolves against the RPMs already installed in that image, so a
+stale tag can lock versions that don't match the real base image and make `microdnf install`
+fail in the hermetic build with `nothing provides <pkg> = <locked-version>`.
 
 ## Building and Pushing Multiarch Image
 
