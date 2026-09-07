@@ -62,7 +62,7 @@ class ArchiveProcessor(Thread):
         self.processor_service = processor_service
         self.session_factory = session_factory
 
-        if not isinstance(queue_size, int):
+        if type(queue_size) is not int:
             raise TypeError("queue_size must be an integer")
 
         self.queue = ArchiveQueue(maxsize=queue_size)
