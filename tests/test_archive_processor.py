@@ -70,9 +70,12 @@ def test_processor_creates_bounded_queue():
 
 
 def test_processor_rejects_invalid_queue_size():
-    """Test queue_size must be at least 1."""
-    with pytest.raises(ValueError, match="queue_size"):
-        ArchiveProcessor(Mock(), Mock(), queue_size=0)
+    """Test queue_size must be an int, not bool or other types."""
+    with pytest.raises(TypeError, match="queue_size must be an integer"):
+        ArchiveProcessor(Mock(), Mock(), queue_size="asd")
+
+    with pytest.raises(TypeError, match="queue_size must be an integer"):
+        ArchiveProcessor(Mock(), Mock(), queue_size=True)
 
 
 def test_processor_consumes_queue_on_single_thread():
