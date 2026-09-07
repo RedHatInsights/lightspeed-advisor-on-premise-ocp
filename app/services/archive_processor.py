@@ -61,8 +61,10 @@ class ArchiveProcessor(Thread):
         super().__init__(name="archive-processor", daemon=True)
         self.processor_service = processor_service
         self.session_factory = session_factory
-        if queue_size < 1:
-            raise ValueError("queue_size must be at least 1")
+
+        if not isinstance(queue_size, int):
+            raise TypeError("queue_size must be an integer")
+
         self.queue = ArchiveQueue(maxsize=queue_size)
 
     def run(self) -> None:
