@@ -121,3 +121,23 @@ spec:
     targetPort: 5432
     name: postgres
   type: ClusterIP
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: insights-postgres
+  namespace: insights-on-prem
+spec:
+  podSelector:
+    matchLabels:
+      app: insights-postgres
+  policyTypes:
+  - Ingress
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: insights-on-prem
+    ports:
+    - protocol: TCP
+      port: 5432
