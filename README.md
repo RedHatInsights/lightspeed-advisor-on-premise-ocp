@@ -441,12 +441,15 @@ For purposes of running the addon locally without need for the cluster, we maint
 
 The Dockerfile is built hermetically by Konflux (network access disabled during the build), using [Hermeto](https://hermetoproject.github.io/hermeto/) to prefetch both pip and RPM dependencies beforehand. See `requirements-in.txt` (source compiled by `uv`), `requirements.txt` (fully-pinned, hashed pip lockfile), and `rpms.in.yaml`/`rpms.lock.yaml` (RPM lockfile).
 
+pip packages come from Red Hat's curated **trusted-libraries** index rather than public PyPI. Hermeto picks it up from the `--index-url https://packages.redhat.com/trusted-libraries/python/` directive at the top of `requirements.txt`, which `scripts/update_requirements.sh` emits — there is nothing to configure in `.tekton/*.yaml`.
+
 Python dependencies are prefetched as **wheels wherever they are pure-Python**, and compiled dependencies are avoided where a non-wheel form exists:
 
 - **From RPM:** the PostgreSQL driver ships as `python3.12-psycopg2` (+ `libpq`) instead of the compiled `psycopg-binary` wheel. SQLAlchemy's default driver for the plain `postgresql://` URL (see `app/config.py`) is psycopg2, so no code change is needed. RPM modules install into `/usr/lib*/python3.12/site-packages`, so the Dockerfile flips `include-system-site-packages=true` in `/opt/venv/pyvenv.cfg` to make them visible to the venv.
 - **Dropped extras:** using plain `uvicorn` (not `uvicorn[standard]`) removes the compiled `uvloop`, `httptools`, `watchfiles` and `websockets` wheels — the app drives uvicorn programmatically and uses none of them.
-- **Already in the base image:** `PyYAML`, `charset-normalizer`, `markupsafe` and `msgpack` are pre-installed in the base image's `/opt/venv`, so they are excluded from `requirements.txt` (via `--no-emit-package`) rather than re-fetched.
-- **Unavoidable compiled wheels:** `pydantic-core` (Rust; required by Pydantic v2 / FastAPI) and `greenlet` (a SQLAlchemy dependency on x86_64) have no RHEL/UBI RPM and no pure-Python form, so they remain binary wheels. `coverage` is a test-only compiled wheel.
+- **Already in the base image:** `PyYAML` is pre-installed in the base image's `/opt/venv` and nothing in `requirements-in.txt` pulls it in, so it never reaches the lockfile. `charset-normalizer`, `markupsafe` and `msgpack` also ship in the base venv but *are* pinned in `requirements.txt`, so pip installs the resolved versions over the base copies.
+- **Unavoidable compiled wheels:** `pydantic-core` (Rust; required by Pydantic v2 / FastAPI) and `greenlet` (a SQLAlchemy dependency on x86_64) have no RHEL/UBI RPM and no pure-Python form, so they remain binary wheels.
+- **Test-only dependencies:** `pytest` and friends are not in `requirements-in.txt` — the Dockerfile copies only `app/`, `migrations/` and `config.yml`, so `tests/` never enters the image. CI installs them from `requirements-test.txt` against public PyPI instead.
 
 Every RPM in `rpms.in.yaml` (currently just `python3.12-psycopg2` and its `libpq` dependency) lives in the **public UBI 9 repos**, so regenerating and prefetching them needs **no Red Hat entitlement** (no `subscription-manager` / activation key).
 
@@ -459,20 +462,37 @@ To add or upgrade a Python dependency, edit `requirements-in.txt`, then regenera
 bash scripts/update_requirements.sh
 
 # Equivalent manual command:
-uv pip compile requirements-in.txt --generate-hashes \
+uv pip compile requirements-in.txt \
+  --index-url https://packages.redhat.com/trusted-libraries/python/ \
+  --emit-index-url --upgrade --generate-hashes \
   --python-version 3.12 --python-platform x86_64-manylinux_2_34 \
   -o requirements.txt
 ```
+
+Every package must exist on the trusted-libraries index: Hermeto supports `--index-url` in a
+requirements file but not `--extra-index-url`, so there is no PyPI fallback. If `uv` reports
+"no version of *X*", check what the index actually carries
+(`curl -sS https://packages.redhat.com/trusted-libraries/python/<pkg>/`) and pin to that
+version — the index is curated and often carries only one.
+
+`--upgrade` is there for **correctness, not freshness**, and must not be dropped. Red Hat
+rebuilds wheels with a build tag (`certifi-2026.6.17-0-py3-none-any.whl`), so their hashes
+differ from PyPI's for the same version. `uv` reads the existing `requirements.txt` as
+resolution preferences *including its `--hash` lines*, so without `--upgrade` any package
+whose version doesn't change silently keeps its old hashes — and `pip install` (which runs in
+hash-checking mode because every line has a `--hash`) then fails the hermetic build with
+`THESE PACKAGES DO NOT MATCH THE HASHES`. The trade-off is that each run re-resolves every
+package to the newest version the index carries, so review the diff before committing.
 
 `requirements.txt` is the fully-pinned, hashed runtime lockfile. There is no
 `requirements-build.txt`: the Hermeto pip prefetch is configured to prefer binary wheels
 (the `binary` filter in `.tekton/*.yaml`), so dependencies are prefetched as wheels rather
 than built from source, and no build-backend lockfile is required.
 
-The `--no-emit-package` flags in `scripts/update_requirements.sh` drop `pyyaml` and
-`charset-normalizer` from the lockfile because the base image already provides them; add a
-flag there if you move another dependency to an RPM or find it already present in the base
-`/opt/venv`.
+The lockfile is not filtered: everything the resolution produces is pinned, even where the
+base image's `/opt/venv` already ships a copy. If you move a dependency to an RPM and want it
+kept out of the pip prefetch entirely, add a `--no-emit-package <name>` flag to
+`scripts/update_requirements.sh`.
 
 ### Regenerating rpms.lock.yaml
 

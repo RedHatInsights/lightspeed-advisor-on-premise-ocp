@@ -19,23 +19,26 @@ alembic>=1.13.0
 # ccx-rules-ocp is already installed in the base image, so it is not listed here.
 # insights-core>=3.2.26
 
-# Lock version as a workaround to PackageWithCorruptLockfileRejected: cachecontrol==0.14.4
-# pulls in uv-build as a build backend, whose sdist ships a Cargo.lock that doesn't match
-# its Cargo.toml, which Hermeto's `cargo vendor --locked` rejects (same fix as rules-containers).
-cachecontrol==0.14.3
+# Pinned because 0.14.4 is the only version Red Hat's trusted-libraries index carries.
+# The earlier 0.14.3 pin worked around PackageWithCorruptLockfileRejected: the 0.14.4 sdist
+# pulls in uv-build as a build backend, whose Cargo.lock doesn't match its Cargo.toml, which
+# Hermeto's `cargo vendor --locked` rejects. That no longer applies — the index serves a
+# prebuilt cachecontrol-0.14.4-0-py3-none-any.whl and the "binary" prefetch filter in
+# .tekton/*.yaml takes the wheel, so the sdist is never built.
+cachecontrol==0.14.4
 
 # HTTP client
 httpx>=0.25.0
 
 # Configuration and utilities
 pydantic>=2.5.0
-# PyYAML is NOT installed from pip here (nor is charset-normalizer, a transitive
-# dep of requests): both already ship in the base image's /opt/venv, so their pip
-# wheels would be redundant. They are excluded from requirements.txt via
-# --no-emit-package in scripts/update_requirements.sh to keep the compiled wheels
-# out of the hermetic prefetch entirely; the runtime imports resolve against the
-# base venv copies.
+# PyYAML is NOT installed from pip here: it already ships in the base image's
+# /opt/venv, and nothing left in this file pulls it in transitively, so it no longer
+# appears in requirements.txt at all. charset-normalizer (a transitive dep of requests)
+# also ships in the base venv but IS pinned in requirements.txt, so pip installs the
+# version this repo resolved over the base image's copy.
 
-# Testing
-pytest>=7.4.0
-pytest-cov>=4.1.0
+# Testing dependencies deliberately live in requirements-test.txt, not here: the
+# Dockerfile copies only app/, migrations/ and config.yml, so tests/ never enters the
+# image and a test runner in it would be dead weight. pytest-cov is also absent from
+# Red Hat's trusted-libraries index, which the hermetic lockfile resolves against.
