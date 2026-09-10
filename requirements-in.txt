@@ -1,3 +1,9 @@
+# Package management
+uv >=0.12.11
+pip >= 0.26.1
+setuptools >= 84.0.0
+wheel >=0.48.0
+
 # FastAPI and web framework
 fastapi>=0.109.0
 # Plain uvicorn (not uvicorn[standard]): the app drives uvicorn programmatically

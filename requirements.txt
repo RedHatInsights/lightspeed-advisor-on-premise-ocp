@@ -81,6 +81,14 @@ msgpack==1.2.2 \
     --hash=sha256:993a7b6c93215206a677207f2ba52575a27ad00648793ee35f617ad8343cf320 \
     --hash=sha256:d5b294f325d0cc7ba9a2d8ce085324ed3cc798f8b8bb6ede7164efa3f89b6082
     # via cachecontrol
+packaging==26.3 \
+    --hash=sha256:0a627d48c77017685d8d0cfb6199771992d13b96aff508570339b33df76591db \
+    --hash=sha256:7f842d04d8ff1e237ebeb55d8bc97b78108677f275c871d9b234210aa7d05bed
+    # via wheel
+pip==26.2.1 \
+    --hash=sha256:5143be0aa19d438d719338f8320832a239b1900e1f901f426846cc7cdb699f6b \
+    --hash=sha256:f3005c891485b6fbdc2ea50f7a1b710b650436f75f1468b1b747fe40f0372e8b
+    # via -r requirements-in.txt
 pydantic==2.13.5 \
     --hash=sha256:18f5ad9b3191a1c287681f9e9319e670d5d5db3150d745187c4b1a2ede80e501 \
     --hash=sha256:7df7416c24957c1a5fdf073a7a087f9e963b2489c1301b5aeb7bc408ae9e6ee6
@@ -99,6 +107,10 @@ requests==2.34.2 \
     --hash=sha256:1c84e3951f2820a4a8480a1a4e5a98b9be5f9fae6472f1d23873b8d8ab2c2f5d \
     --hash=sha256:89b68cb3f13fb6f93ce4dbbab5581cec33e08691840e09c8a0cefa1d9ed4b1f2
     # via cachecontrol
+setuptools==84.0.0 \
+    --hash=sha256:50e2b6526f3d7a6b269a26757b047adc4ef704161f1292305075deb01cac3a9f \
+    --hash=sha256:79e42bf896a6cf91932b97d452156b5aa3eb8b78058fe6a95aff3f900d527443
+    # via -r requirements-in.txt
 sqlalchemy==2.0.52 \
     --hash=sha256:0be13b7bc66d21f5ea29a44c5694453fcd6e4984edf571367c4cd3f01439320e \
     --hash=sha256:6e4ef0f9ee6c9231893e6407e3bcee35c9cda87384d89dcecb8b9278701b0e3e
@@ -131,7 +143,15 @@ urllib3==2.7.0 \
     --hash=sha256:608a3839d90823037c9aa87e0d6275e44ad29d77ce21f28be9bd0b72f49ce9ca \
     --hash=sha256:ee0237918fcbb4104beb210f99130a212a3bcb79b3ae12f81fdc0521f125aaae
     # via requests
+uv==0.12.12 \
+    --hash=sha256:6e41127dac68b47660c0ca134c942582e9e4531f658dbf0c01fa364f4e4f633b \
+    --hash=sha256:e0eb3f0e710110c6bba20ddfcfba2bf26abe57f6e51681cfe6cf7256dc849c85
+    # via -r requirements-in.txt
 uvicorn==0.52.4 \
     --hash=sha256:130b16f36a216cb9d1235f7fb1a78cb906f675ff43969f18f598ff9faed5ea3e \
     --hash=sha256:ebbc8a9551272ded3991c20c0e0811b849a2e77ec68bf1391e9adb419749b769
+    # via -r requirements-in.txt
+wheel==0.48.0 \
+    --hash=sha256:03a73b5be6c2cb22f7611766eaf2ffc98940fddb8682a1f6a676b37b44e28eb9 \
+    --hash=sha256:ce48e5228a0db4a27eb1d49791e43de71e16d5e2faec8951764723bc387800c9
     # via -r requirements-in.txt
