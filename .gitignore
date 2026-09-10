@@ -1,8 +1,9 @@
 __pycache__/
 deploy/02-pull-secret.yml
 
-# Transient UBI repo file extracted from the base image by
-# scripts/update_rpm_lockfile.sh, plus the registry auth it uses.
+# Transient RPM repo files generated/extracted by scripts/update_rpm_lockfile.sh,
+# plus the registry auth it uses.
+redhat.repo
 ubi.repo
 scripts/.dockerconfig.json
 archive.tar

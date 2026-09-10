@@ -451,7 +451,7 @@ Python dependencies are prefetched as **wheels wherever they are pure-Python**, 
 - **Unavoidable compiled wheels:** `pydantic-core` (Rust; required by Pydantic v2 / FastAPI) and `greenlet` (a SQLAlchemy dependency on x86_64) have no RHEL/UBI RPM and no pure-Python form, so they remain binary wheels.
 - **Test-only dependencies:** `pytest` and friends are not in `requirements-in.txt` — the Dockerfile copies only `app/`, `migrations/` and `config.yml`, so `tests/` never enters the image. CI installs them from `requirements-test.txt` against public PyPI instead.
 
-RPMs are discovered from the Dockerfile's `microdnf`/`dnf`/`yum install` commands and resolved from the **public UBI 9 repos**, so regenerating and prefetching them needs **no Red Hat entitlement** (no `subscription-manager` / activation key). Transitive RPM dependencies (for example `libpq` for `python3.12-psycopg2`) are included in `rpms.lock.yaml` automatically.
+RPMs are discovered from the Dockerfile's `microdnf`/`dnf`/`yum install` commands and resolved from the **public UBI 9 repos**, so regenerating the lockfile needs **no Red Hat entitlement** (no `subscription-manager` / activation key). The committed lockfile uses the corresponding RHEL repo IDs and `cdn.redhat.com` download URLs for Enterprise Contract compatibility, while preserving the UBI-resolved checksums. Transitive RPM dependencies (for example `libpq` for `python3.12-psycopg2`) are included in `rpms.lock.yaml` automatically.
 
 ### Regenerating requirements.txt
 
@@ -496,7 +496,7 @@ kept out of the pip prefetch entirely, add a `--no-emit-package <name>` flag to
 
 ### Regenerating rpms.lock.yaml
 
-To change the set of RPM-sourced dependencies, edit the Dockerfile's `microdnf`/`dnf`/`yum install` command, then regenerate `rpms.lock.yaml` with the helper. `rpms.in.yaml` points rpm-lockfile-prototype at the Dockerfile for both base-image detection and package discovery. The helper must run **inside a `linux/amd64` UBI9 container** (for the target arch and `skopeo`); every package resolves from the public UBI CDN, so no entitlement is needed — only `scripts/.dockerconfig.json` (a `registry.redhat.io` pull secret) so `skopeo` can inspect the base image:
+To change the set of RPM-sourced dependencies, edit the Dockerfile's `microdnf`/`dnf`/`yum install` command, then regenerate `rpms.lock.yaml` with the helper. `rpms.in.yaml` points rpm-lockfile-prototype at the Dockerfile for both base-image detection and package discovery. The helper must run **inside a `linux/amd64` UBI9 container** (for the target arch and `skopeo`); package resolution uses the public UBI CDN, so no entitlement is needed locally — only `scripts/.dockerconfig.json` (a `registry.redhat.io` pull secret) so `skopeo` can inspect the base image. After resolving, the helper rewrites the lockfile to the matching RHEL repo IDs / `cdn.redhat.com` URLs:
 
 ```bash
 # scripts/.dockerconfig.json = your registry.redhat.io pull secret

@@ -7,9 +7,14 @@
 # RPM dependencies. For example, adding python3.12-psycopg2 to the Dockerfile
 # causes libpq to be locked as well.
 #
-# Unlike the old build-tool lockfile, the RPMs used here live in the public UBI
-# 9 repos, so NO Red Hat entitlement (subscription-manager / activation key) is
-# needed. The only auth required is a registry.redhat.io pull secret so skopeo
+# Resolution uses the public UBI 9 repos, so NO Red Hat entitlement
+# (subscription-manager / activation key) is needed to regenerate the lockfile.
+# To satisfy Enterprise Contract's known-RPM-repo policy and match the legacy
+# lockfile shape, the generated lockfile is emitted with the corresponding RHEL
+# repo IDs and cdn.redhat.com download URLs. The RPM checksums remain the ones
+# resolved from UBI.
+#
+# The only auth required locally is a registry.redhat.io pull secret so skopeo
 # can inspect the Dockerfile's base image.
 #
 # Must run on linux/amd64 (rpm-lockfile-prototype resolves for the target arch).
@@ -29,7 +34,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(dirname "$SCRIPT_DIR")"
 INPUT_FILE="${REPO_ROOT}/rpms.in.yaml"
 OUTPUT_FILE="${REPO_ROOT}/rpms.lock.yaml"
-REPO_FILE="${REPO_ROOT}/ubi.repo"
+REPO_FILE="${REPO_ROOT}/redhat.repo"
 DOCKERFILE="${REPO_ROOT}/Dockerfile"
 DOCKERCONFIG_FILE="${SCRIPT_DIR}/.dockerconfig.json"
 PODMAN_HINT="podman run --rm --platform linux/amd64 -v \"\$(pwd):/work:Z\" -w /work registry.access.redhat.com/ubi9/ubi bash scripts/update_rpm_lockfile.sh"
@@ -83,8 +88,10 @@ echo "Base image: ${BASE_IMAGE}"
 echo "Output:     ${OUTPUT_FILE}"
 echo ""
 
-# The transiently-extracted ubi.repo is referenced by rpms.in.yaml but not
-# committed (it just mirrors the base image's public UBI repo definitions).
+# The transient redhat.repo is referenced by rpms.in.yaml but not committed. It
+# is generated from the base image's public UBI repo definitions with RHEL repo
+# IDs, so dependency resolution still uses UBI content while the lockfile records
+# Enterprise Contract-known repository IDs.
 cleanup() {
     rm -f "${REPO_FILE}"
     rm -rf "${IMAGE_DIR}"
@@ -96,13 +103,14 @@ python3 -m pip install --user git+https://github.com/konflux-ci/rpm-lockfile-pro
 
 export REGISTRY_AUTH_FILE="${DOCKERCONFIG_FILE}"
 
-# rpm-lockfile-prototype reads the repo definitions from ./ubi.repo. Pull them
-# straight out of the base image so they always match what's available at build
-# time (the image ships them in /etc/yum.repos.d/ubi.repo).
+# rpm-lockfile-prototype reads the repo definitions from ./redhat.repo. Build it
+# from the base image's /etc/yum.repos.d/ubi.repo so package metadata and hashes
+# come from public UBI, but rename repo section IDs to their RHEL counterparts.
 skopeo copy --override-arch amd64 "docker://${BASE_IMAGE}" "dir:${IMAGE_DIR}"
 python3 - "${IMAGE_DIR}" "${REPO_FILE}" <<'PY'
 import json
 import os
+import re
 import sys
 import tarfile
 
@@ -127,12 +135,67 @@ for layer in manifest["layers"]:
 if repo_contents is None:
     sys.exit("Error: could not find /etc/yum.repos.d/ubi.repo in base image layers")
 
-with open(out, "wb") as repo_file:
-    repo_file.write(repo_contents)
-print(f"Extracted ubi.repo from layer {repo_layer[:12]}")
+def rhel_repo_id(repo_id, arch="x86_64"):
+    match = re.fullmatch(
+        r"ubi-(?P<version>\d+)-(?P<repo>baseos|appstream)"
+        r"(?P<kind>-debug|-source)?-rpms",
+        repo_id,
+    )
+    if match:
+        kind = match.group("kind") or ""
+        return (
+            f"rhel-{match.group('version')}-for-{arch}-"
+            f"{match.group('repo')}{kind}-rpms"
+        )
+
+    match = re.fullmatch(
+        r"ubi-(?P<version>\d+)-codeready-builder"
+        r"(?P<kind>-debug|-source)?-rpms",
+        repo_id,
+    )
+    if match:
+        kind = match.group("kind") or ""
+        return (
+            f"codeready-builder-for-rhel-{match.group('version')}-"
+            f"{arch}{kind}-rpms"
+        )
+
+    return repo_id
+
+repo_text = repo_contents.decode()
+repo_text = re.sub(
+    r"^\[(?P<repo_id>[^]]+)]$",
+    lambda match: f"[{rhel_repo_id(match.group('repo_id'))}]",
+    repo_text,
+    flags=re.MULTILINE,
+)
+
+with open(out, "w") as repo_file:
+    repo_file.write(repo_text)
+print(f"Extracted ubi.repo from layer {repo_layer[:12]} as redhat.repo")
 PY
 
 ~/.local/bin/rpm-lockfile-prototype "${INPUT_FILE}" --outfile "${OUTPUT_FILE}"
+
+# The resolver used public UBI baseurls above. Emit legacy/RHEL download URLs in
+# the lockfile while preserving the UBI-resolved package checksums.
+python3 - "${OUTPUT_FILE}" <<'PY'
+import re
+import sys
+from pathlib import Path
+
+path = Path(sys.argv[1])
+text = path.read_text()
+text = re.sub(
+    r"https://cdn-ubi\.redhat\.com/content/public/ubi/dist/ubi(?P<version>\d+)/"
+    r"(?P<releasever>[^/]+)/(?P<arch>[^/]+)/"
+    r"(?P<repo>baseos|appstream|codeready-builder)/",
+    r"https://cdn.redhat.com/content/dist/rhel\g<version>/"
+    r"\g<releasever>/\g<arch>/\g<repo>/",
+    text,
+)
+path.write_text(text)
+PY
 
 if [ ! -s "${OUTPUT_FILE}" ]; then
     echo "Error: Output file is empty or was not created" >&2

@@ -6,11 +6,12 @@
 # resolver will include transitive RPM dependencies (for example libpq for
 # python3.12-psycopg2) automatically.
 #
-# The repos come from the Dockerfile base image's own /etc/yum.repos.d/ubi.repo
-# (extracted by the helper script), so regenerating and prefetching the current
-# RPM set needs no Red Hat entitlement for these public UBI repositories.
+# The helper generates a transient redhat.repo from the Dockerfile base image's
+# public UBI repo definitions. Dependency resolution uses UBI package metadata
+# and checksums, while the resulting lockfile records the corresponding RHEL
+# repo IDs / cdn.redhat.com URLs for Enterprise Contract compatibility.
 contentOrigin:
-  repofiles: ["./ubi.repo"]
+  repofiles: ["./redhat.repo"]
 context:
   # Keep base-image resolution in sync with the Dockerfile's FROM line. The
   # tool inspects RPMs already installed in that image while resolving the
