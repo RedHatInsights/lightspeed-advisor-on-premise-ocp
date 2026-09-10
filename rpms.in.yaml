@@ -1,33 +1,22 @@
 # Input for rpm-lockfile-prototype -> rpms.lock.yaml (regenerate via
-# scripts/update_rpm_lockfile.sh). This is the Python dependency we install as an
-# RPM instead of a compiled pip wheel, plus its transitive RPM deps (libpq).
+# scripts/update_rpm_lockfile.sh).
 #
-# Only psycopg2 is sourced from an RPM: it is the sole compiled dependency the
-# app adds that the base image's venv does not already ship. PyYAML,
-# charset-normalizer, markupsafe and msgpack all come pre-installed in the base
-# image's /opt/venv (as wheels we don't control); their venv copies shadow any
-# system-site RPM, so packaging them here would be dead weight. pydantic-core and
-# greenlet have no RHEL/UBI RPM at all and stay as (unavoidable) wheels.
+# The Dockerfile is the source of truth for RPMs. Add direct RPM requirements to
+# its RUN microdnf/dnf/yum install command, then regenerate the lockfile; the
+# resolver will include transitive RPM dependencies (for example libpq for
+# python3.12-psycopg2) automatically.
 #
-# libpq lives in the public UBI 9 repos, so — unlike the previous build-tool
-# lockfile — no Red Hat entitlement (subscription-manager / activation key) is
-# required to resolve or prefetch it. The repos come from the base image's own
-# /etc/yum.repos.d/ubi.repo (extracted by the helper script).
+# The repos come from the Dockerfile base image's own /etc/yum.repos.d/ubi.repo
+# (extracted by the helper script), so regenerating and prefetching the current
+# RPM set needs no Red Hat entitlement for these public UBI repositories.
 contentOrigin:
   repofiles: ["./ubi.repo"]
 context:
-  # Must match the Dockerfile's FROM image exactly. rpm-lockfile-prototype
-  # inspects the RPMs already installed in this image to resolve the dependency
-  # graph; pointing it at a different image (e.g. ubi9-minimal) can lock package
-  # versions (e.g. glibc) that differ from what's baked into ocp-rules-rhel9,
-  # making microdnf's hermetic depsolve fail with
-  # "nothing provides <pkg> = <locked-version>". Keep this in sync with the
-  # Dockerfile FROM tag whenever you bump the base image.
-  image: registry.redhat.io/lightspeed-services-ocp/ocp-rules-rhel9:2026.08.25
-packages:
-  # PostgreSQL driver (+ libpq, pulled in as a dependency). Replaces the
-  # compiled psycopg-binary wheel. SQLAlchemy's default driver for a plain
-  # "postgresql://" URL (app/config.py) is psycopg2, so no code change is needed.
-  - python3.12-psycopg2
+  # Keep base-image resolution in sync with the Dockerfile's FROM line. The
+  # tool inspects RPMs already installed in that image while resolving the
+  # dependency graph; resolving against a different image can lock package
+  # versions that microdnf cannot use in the hermetic build.
+  containerfile: Dockerfile
+packagesFromContainerfile: Dockerfile
 arches:
   - x86_64
