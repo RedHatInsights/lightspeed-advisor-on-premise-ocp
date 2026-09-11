@@ -35,8 +35,12 @@ spec:
   - name: prefetch-input
     value: >-
       [
-        {"type": "pip", "path": "."},
-        {"type": "rpm", "path": "."}
+        {"type": "pip", "path": ".", "binary": {
+          "os": "linux",
+          "arch": "x86_64",
+          "py_version": 312
+        }},
+        {"type": "rpm"}
       ]
   pipelineRef:
     name: docker-build

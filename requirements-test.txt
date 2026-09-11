@@ -1,5 +1,11 @@
 # Dependencies for running unit tests in CI
-# This file excludes CCX packages that require the internal Nexus repository
+# This file excludes CCX packages that require the internal Nexus repository.
+#
+# Unlike the hermetic image build (which sources psycopg2, PyYAML and
+# charset-normalizer from RPMs — see rpms.in.yaml), CI runs on stock GitHub
+# runners with only public PyPI, so those come from pip here. The unit tests
+# use an in-memory SQLite engine (tests/conftest.py), so no psycopg driver is
+# needed at all.
 
 # FastAPI and web framework
 fastapi>=0.109.0
@@ -8,7 +14,6 @@ python-multipart>=0.0.6
 
 # Database
 sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.9
 alembic>=1.13.0
 
 # Insights-core (available on public PyPI)

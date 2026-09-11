@@ -38,7 +38,8 @@ Insights on Premise aims to provide recommendations based on Insights archives i
     - [API Documentation](#api-documentation)
   - [Running Locally with Docker Compose](#running-locally-with-docker-compose)
   - [Hermetic Builds](#hermetic-builds)
-    - [Regenerating requirements.txt / requirements-build.txt / rpms.in.yaml](#regenerating-requirementstxt--requirements-buildtxt--rpmsinyaml)
+    - [Regenerating requirements.txt](#regenerating-requirementstxt)
+    - [Regenerating rpms.lock.yaml](#regenerating-rpmslockyaml)
   - [Building and Pushing Multiarch Image](#building-and-pushing-multiarch-image)
   - [License](#license)
 
@@ -438,49 +439,75 @@ For purposes of running the addon locally without need for the cluster, we maint
 
 ## Hermetic Builds
 
-The Dockerfile is built hermetically by Konflux (network access disabled during the build), using [Hermeto](https://hermetoproject.github.io/hermeto/) to prefetch pip and RPM dependencies beforehand. See `requirements-in.txt` (source for `pip-compile`), `requirements.txt`/`requirements-build.txt` (pinned lockfiles), and `rpms.in.yaml`/`rpms.lock.yaml` (RPM lockfile, regenerated via `scripts/update_rpm_lockfile.sh`).
+The Dockerfile is built hermetically by Konflux (network access disabled during the build), using [Hermeto](https://hermetoproject.github.io/hermeto/) to prefetch both pip and RPM dependencies beforehand. See `requirements-in.txt` (source compiled by `uv`), `requirements.txt` (fully-pinned, hashed pip lockfile), and `rpms.in.yaml`/`rpms.lock.yaml` (RPM lockfile).
 
-### Regenerating requirements.txt / requirements-build.txt / rpms.in.yaml
+pip packages come from Red Hat's curated **trusted-libraries** index rather than public PyPI. Hermeto picks it up from the `--index-url https://packages.redhat.com/trusted-libraries/python/` directive at the top of `requirements.txt`, which `scripts/update_requirements.sh` emits — there is nothing to configure in `.tekton/*.yaml`.
 
-To add or upgrade a Python dependency, edit `requirements-in.txt`, then regenerate the pinned files. **Always do this inside a `linux/amd64` Python 3.12 container** (matching the base image and Konflux's build platform) — running `pip-compile` on macOS/arm64 silently drops dependencies whose markers only match `x86_64`/`aarch64` (e.g. SQLAlchemy's `greenlet`), since pip-compile resolves environment markers against the machine it runs on, not the target platform:
+Python dependencies are prefetched as **wheels wherever they are pure-Python**, and compiled dependencies are avoided where a non-wheel form exists:
+
+- **From RPM:** the PostgreSQL driver ships as `python3.12-psycopg2` (+ `libpq`) instead of the compiled `psycopg-binary` wheel. SQLAlchemy's default driver for the plain `postgresql://` URL (see `app/config.py`) is psycopg2, so no code change is needed. RPM modules install into `/usr/lib*/python3.12/site-packages`, so the Dockerfile flips `include-system-site-packages=true` in `/opt/venv/pyvenv.cfg` to make them visible to the venv.
+- **Dropped extras:** using plain `uvicorn` (not `uvicorn[standard]`) removes the compiled `uvloop`, `httptools`, `watchfiles` and `websockets` wheels — the app drives uvicorn programmatically and uses none of them.
+- **Already in the base image:** `PyYAML` is pre-installed in the base image's `/opt/venv` and nothing in `requirements-in.txt` pulls it in, so it never reaches the lockfile. `charset-normalizer`, `markupsafe` and `msgpack` also ship in the base venv but *are* pinned in `requirements.txt`, so pip installs the resolved versions over the base copies.
+- **Unavoidable compiled wheels:** `pydantic-core` (Rust; required by Pydantic v2 / FastAPI) and `greenlet` (a SQLAlchemy dependency on x86_64) have no RHEL/UBI RPM and no pure-Python form, so they remain binary wheels.
+- **Test-only dependencies:** `pytest` and friends are not in `requirements-in.txt` — the Dockerfile copies only `app/`, `migrations/` and `config.yml`, so `tests/` never enters the image. CI installs them from `requirements-test.txt` against public PyPI instead.
+
+RPMs are discovered from the Dockerfile's `microdnf`/`dnf`/`yum install` commands and resolved from the **public UBI 9 repos**, so regenerating the lockfile needs **no Red Hat entitlement** (no `subscription-manager` / activation key). The committed lockfile uses the corresponding RHEL repo IDs and `cdn.redhat.com` download URLs for Enterprise Contract compatibility, while preserving the UBI-resolved checksums. Transitive RPM dependencies (for example `libpq` for `python3.12-psycopg2`) are included in `rpms.lock.yaml` automatically.
+
+### Regenerating requirements.txt
+
+To add or upgrade a Python dependency, edit `requirements-in.txt`, then regenerate the pinned lockfile with [`uv`](https://docs.astral.sh/uv/). `uv` resolves for the *target* platform (`linux/x86_64`, manylinux/glibc, Python 3.12) regardless of the host, so this can run **directly on macOS/arm64 — no container needed** (unlike the old `pip-compile` workflow, which resolved environment markers against the host and silently dropped platform-only deps such as SQLAlchemy's `greenlet`):
 
 ```bash
-# Prefer the helper script (also used by ccx-rules-releaser):
-podman run --rm --platform linux/amd64 -v "$(pwd):/work:Z" -w /work python:3.12-slim \
-  bash scripts/update_requirements.sh
+# Prefer the helper script:
+bash scripts/update_requirements.sh
 
-# Equivalent manual commands:
-podman run --rm --platform linux/amd64 -v "$(pwd):/work:Z" -w /work python:3.12-slim bash -c '
-  set -euo pipefail
-  pip install -q pip-tools pybuild-deps
-  pip-compile --output-file=requirements.txt requirements-in.txt
-  pybuild-deps compile --generate-hashes --output-file=requirements-build.txt requirements.txt
-'
+# Equivalent manual command:
+uv pip compile requirements-in.txt \
+  --index-url https://packages.redhat.com/trusted-libraries/python/ \
+  --emit-index-url --upgrade --generate-hashes \
+  --python-version 3.12 --python-platform x86_64-manylinux_2_34 \
+  -o requirements.txt
 ```
 
-`requirements.txt` is the fully-pinned runtime lockfile; `requirements-build.txt` lists the build-backend sdists (e.g. `setuptools`, `cython`, `maturin`) Hermeto needs to prefetch so packages without prebuilt wheels can be built from source in the hermetic build.
+Every package must exist on the trusted-libraries index: Hermeto supports `--index-url` in a
+requirements file but not `--extra-index-url`, so there is no PyPI fallback. If `uv` reports
+"no version of *X*", check what the index actually carries
+(`curl -sS https://packages.redhat.com/trusted-libraries/python/<pkg>/`) and pin to that
+version — the index is curated and often carries only one.
 
-To regenerate `rpms.lock.yaml`, run the helper **inside a `linux/amd64` entitlement-capable RHEL9/UBI9 container** (`registry.access.redhat.com/ubi9/ubi`, which includes `subscription-manager` for entitled RHEL CDN repos). Do not run it on the host. Requires `RH_ORG_ID`, `RH_ACTIVATION_KEY`, and `scripts/.dockerconfig.json` (for registry.redhat.io):
+`--upgrade` is there for **correctness, not freshness**, and must not be dropped. Red Hat
+rebuilds wheels with a build tag (`certifi-2026.6.17-0-py3-none-any.whl`), so their hashes
+differ from PyPI's for the same version. `uv` reads the existing `requirements.txt` as
+resolution preferences *including its `--hash` lines*, so without `--upgrade` any package
+whose version doesn't change silently keeps its old hashes — and `pip install` (which runs in
+hash-checking mode because every line has a `--hash`) then fails the hermetic build with
+`THESE PACKAGES DO NOT MATCH THE HASHES`. The trade-off is that each run re-resolves every
+package to the newest version the index carries, so review the diff before committing.
+
+`requirements.txt` is the fully-pinned, hashed runtime lockfile. There is no
+`requirements-build.txt`: the Hermeto pip prefetch is configured to prefer binary wheels
+(the `binary` filter in `.tekton/*.yaml`), so dependencies are prefetched as wheels rather
+than built from source, and no build-backend lockfile is required.
+
+The lockfile is not filtered: everything the resolution produces is pinned, even where the
+base image's `/opt/venv` already ships a copy. If you move a dependency to an RPM and want it
+kept out of the pip prefetch entirely, add a `--no-emit-package <name>` flag to
+`scripts/update_requirements.sh`.
+
+### Regenerating rpms.lock.yaml
+
+To change the set of RPM-sourced dependencies, edit the Dockerfile's `microdnf`/`dnf`/`yum install` command, then regenerate `rpms.lock.yaml` with the helper. `rpms.in.yaml` points rpm-lockfile-prototype at the Dockerfile for both base-image detection and package discovery. The helper must run **inside a `linux/amd64` UBI9 container** (for the target arch and `skopeo`); package resolution uses the public UBI CDN, so no entitlement is needed locally — only `scripts/.dockerconfig.json` (a `registry.redhat.io` pull secret) so `skopeo` can inspect the base image. After resolving, the helper rewrites the lockfile to the matching RHEL repo IDs / `cdn.redhat.com` URLs:
 
 ```bash
-export RH_ORG_ID=...
-export RH_ACTIVATION_KEY=...
+# scripts/.dockerconfig.json = your registry.redhat.io pull secret
+# (e.g. cp ~/.config/containers/auth.json scripts/.dockerconfig.json)
 podman run --rm --platform linux/amd64 \
   -v "$(pwd):/work:Z" -w /work \
-  -e RH_ORG_ID -e RH_ACTIVATION_KEY \
   registry.access.redhat.com/ubi9/ubi \
   bash scripts/update_rpm_lockfile.sh
 ```
 
-Some RPMs (e.g. `postgresql-devel`) are only available on the entitled RHEL CDN, not the public UBI repos. Konflux's `prefetch-dependencies` task needs an `activation-key` secret in the `obsint-processing-tenant` namespace to authenticate to that CDN — without it, prefetching fails with a misleading `SSLCertVerificationError: self-signed certificate in certificate chain`. This secret is namespace-scoped (shared with `rules-containers`), see the value in Bitwarden, so it only needs to be created once per tenant:
-
-```bash
-oc create -f <path-to>/activation-key-secret.yaml
-```
-
-You may need to follow <https://konflux.pages.redhat.com/docs/users/building/activation-keys-subscription.html#Create-custom-activation-key-secret> to troubleshoot any issues.
-
-`rpms.in.yaml`'s `context.image` must be kept in sync with the Dockerfile's `FROM` tag. `rpm-lockfile-prototype` resolves dependencies against the RPMs already installed in that image, so pointing it at a different image (or a stale tag) can lock in package versions (e.g. `glibc-devel`) that don't match what's actually baked into the real base image, causing `microdnf install` to fail in the hermetic build with `nothing provides glibc = <locked-version>`. Whenever you bump the base image tag in the Dockerfile, update `context.image` to match and rerun `scripts/update_rpm_lockfile.sh`.
+The Dockerfile's `FROM` image is used as the rpm-lockfile context image. `rpm-lockfile-prototype` resolves against RPMs already installed in that image, so a stale or incorrect base image can lock versions that don't match the real build and make `microdnf install` fail in the hermetic build with `nothing provides <pkg> = <locked-version>`.
 
 ## Building and Pushing Multiarch Image
 

@@ -1,8 +1,10 @@
 __pycache__/
 deploy/02-pull-secret.yml
 
-# Transient entitled repo file used by scripts/update_rpm_lockfile.sh
+# Transient RPM repo files generated/extracted by scripts/update_rpm_lockfile.sh,
+# plus the registry auth it uses.
 redhat.repo
-archive.tar
+ubi.repo
 scripts/.dockerconfig.json
+archive.tar
 .cursor/
