@@ -19,7 +19,7 @@ spec:
           type: RuntimeDefault
       containers:
       - name: insights-on-prem
-        image: registry.redhat.io/lightspeed-services-acm/ocp-rules-rhel9:latest
+        image: registry.redhat.io/lightspeed-services-acm/ocp-rules-rhel9:2026.09.08
         ports:
         - containerPort: 8443
           name: https
