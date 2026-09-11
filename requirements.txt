@@ -20,6 +20,7 @@ anyio==4.15.1 \
     # via
     #   httpx
     #   starlette
+    #   watchfiles
 cachecontrol==0.14.4 \
     --hash=sha256:79185110c5169ad098319a18678ed2dca6beeed18199e2b03b00aa052146147f \
     --hash=sha256:b54c95371800fb13b7da80c0464d4365c9e54077a86f8632ebaad8b21309adeb
@@ -58,6 +59,10 @@ httpcore==1.0.9 \
     --hash=sha256:6ea45626990b4964089ca9c03dc12cd87b97f1a964052b81cd2a2c887f8e37ab \
     --hash=sha256:ad12ca21a7731106d38f5c7f5b4e00f40d67489de96b97a089fb6fcbf9593359
     # via httpx
+httptools==0.8.0 \
+    --hash=sha256:43c0b52d1d0299577d171bf4b65d5f961e4a2744a5714331ffda5bcb0ad44b06 \
+    --hash=sha256:6ddae0c1940e50fae3b21369e05782c058c1ccbdefa7c5671051a479d0ddabd5
+    # via uvicorn
 httpx==0.28.1 \
     --hash=sha256:450090fe54435fa54948d27bee2668dafd5759e6e2f239d39f5f4ec209a7d987 \
     --hash=sha256:e3a86eea5890f0e82c2fb9b4eefde9c9eda3d88b8be5e7671d3939b8f8f23acb
@@ -99,10 +104,18 @@ pydantic-core==2.46.5 \
     --hash=sha256:531ab5d98f692ce12ac6a07e22a34688170381ed36c3fc18c14a604d9a99a26d \
     --hash=sha256:544e190bee08cfe0b567561d4c530f35242f926dcf2821c560049df4b758ad66
     # via pydantic
+python-dotenv==1.2.3 \
+    --hash=sha256:2ddd6f04fc8a1a8672419701b7f58475e56ca863a33f23314460ad72aa538ce6 \
+    --hash=sha256:91f3e43aa7403bec7e0e59c94233913e9025b254f5b3b3634976e060c2833278
+    # via uvicorn
 python-multipart==0.0.32 \
     --hash=sha256:c3b9437beb40a1a6786906bce9d8433f70872b4735b1b2756868cba79cfe1d86 \
     --hash=sha256:cef0a052e28a0cd502781d1b01754b8ae4550aca27129a948d0f7889b1ec9969
     # via -r requirements-in.txt
+pyyaml==6.0.3 \
+    --hash=sha256:0ba6b8f2718b99b4eb6218f668565c5e0bc18dff94cbc179b8374f1cfdc60b67 \
+    --hash=sha256:f1a23c188c70561f6e3d6be36ad3d3216cb9ba22ef57439d07227144219081b1
+    # via uvicorn
 requests==2.34.2 \
     --hash=sha256:1c84e3951f2820a4a8480a1a4e5a98b9be5f9fae6472f1d23873b8d8ab2c2f5d \
     --hash=sha256:89b68cb3f13fb6f93ce4dbbab5581cec33e08691840e09c8a0cefa1d9ed4b1f2
@@ -122,6 +135,7 @@ starlette==1.6.0 \
     --hash=sha256:f305047f94496915f92e4685664e16457351a867f6846d3ee0fc842a2a199868
     # via fastapi
 typing-extensions==4.16.0 \
+    --hash=sha256:1499f43887b0cb15e8e4762c88946d1c95e63f537afb0bcb30d435ac165a481f \
     --hash=sha256:48a136ea7f6ffab50679641670b5f65de2cfe43cd20f08c8270a1a05d68f8058 \
     --hash=sha256:ef52d91e23c81e38915b218ed27ce79af339655f9d70adec8c8f4afb3d5197d3
     # via
@@ -151,6 +165,18 @@ uvicorn==0.52.4 \
     --hash=sha256:130b16f36a216cb9d1235f7fb1a78cb906f675ff43969f18f598ff9faed5ea3e \
     --hash=sha256:ebbc8a9551272ded3991c20c0e0811b849a2e77ec68bf1391e9adb419749b769
     # via -r requirements-in.txt
+uvloop==0.22.1 \
+    --hash=sha256:4f7f6dcf0cc4a71ac7336b4d139f314016c2bd451cc38da9e1305d0dfecf5fda \
+    --hash=sha256:86928786b22fca423e9fdbaf7842a0dd742abe85482e18c84a111cdd29aa094b
+    # via uvicorn
+watchfiles==1.2.0 \
+    --hash=sha256:bd8a116dfe2a2dcdeca25d591a590317e68e779f91ceba443a8484146299a60e \
+    --hash=sha256:dc4eeaf26fb30c5e839c06f76c98ad2ce5051ea555a7c03244e5e339903a3ad6
+    # via uvicorn
+websockets==17.1 \
+    --hash=sha256:b2210eba7c4d1514278def8452b80164f6a848bb4a95114d4d519360656cee12 \
+    --hash=sha256:b4cca8984a0176afa75e7874a87776390425c55134a5027be8ec79e96515d5dd
+    # via uvicorn
 wheel==0.48.0 \
     --hash=sha256:03a73b5be6c2cb22f7611766eaf2ffc98940fddb8682a1f6a676b37b44e28eb9 \
     --hash=sha256:ce48e5228a0db4a27eb1d49791e43de71e16d5e2faec8951764723bc387800c9
