@@ -148,7 +148,7 @@ The Insights section of that page has four panels:
 
 ## On-Demand Data Gathering
 
-On-demand data gathering allows triggering Insights data collection outside the regular periodic schedule. Instead of waiting for the next periodic upload (default 2h, set to 1m by `deploy/14-hub-config.yml`), you can request an immediate gather-and-upload cycle and get results for that specific request.
+On-demand data gathering allows triggering Insights data collection outside the regular periodic schedule. Instead of waiting for the next periodic upload (default 2h), you can request an immediate gather-and-upload cycle and get results for that specific request.
 
 > **Note:** Conditional data gathering is not supported at this moment. Disable the `conditional` gatherer in the `DataGather` CR to avoid unnecessary calls to `console.redhat.com` for gathering rules (as shown in the following section).
 
