@@ -44,8 +44,26 @@ RUN { \
     } > /tmp/uv-requirements.txt && \
     /opt/venv/bin/pip install --no-cache-dir --require-hashes --no-deps \
         -r /tmp/uv-requirements.txt && \
-    /opt/venv/bin/uv pip install --python /opt/venv/bin/python --no-cache \
-        -r requirements.txt && \
+    # Hermeto provides /cachi2/cachi2.env, which points at its prefetched wheels
+    # through PIP_FIND_LINKS and disables external indexes with PIP_NO_INDEX. uv does
+    # not consume those pip settings automatically, so source cachi2.env and pass the
+    # local wheel directory explicitly to uv.
+    if [ -f /cachi2/cachi2.env ]; then \
+        . /cachi2/cachi2.env && \
+        /opt/venv/bin/uv pip install \
+            --python /opt/venv/bin/python \
+            --offline \
+            --no-index \
+            --find-links "${PIP_FIND_LINKS}" \
+            --no-cache \
+            -r requirements.txt && \
+        /opt/venv/bin/uv pip check --python /opt/venv/bin/python; \
+    else \
+        /opt/venv/bin/uv pip install \
+            --python /opt/venv/bin/python \
+            --no-cache \
+            -r requirements.txt; \
+    fi && \
     /opt/venv/bin/pip uninstall -y uv && \
     find /opt/venv -type d -name __pycache__ -prune -exec rm -rf '{}' + && \
     rm -rf /root/.cache /tmp/* && \

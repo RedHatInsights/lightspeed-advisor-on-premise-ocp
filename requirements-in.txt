@@ -1,8 +1,8 @@
 # Package management
-uv >=0.12.11
-pip >= 0.26.1
-setuptools >= 84.0.0
-wheel >=0.48.0
+uv>=0.12.11
+pip>= 0.26.1
+setuptools>= 84.0.0
+wheel>=0.48.0
 
 # FastAPI and web framework
 fastapi>=0.109.0
@@ -10,7 +10,7 @@ fastapi>=0.109.0
 # (uvicorn.Config/Server in app/main.py) and uses none of the [standard] extras.
 # [standard] pulls in four compiled wheels — uvloop, httptools, watchfiles and
 # websockets — none of which we need. uvicorn itself is pure Python.
-uvicorn>=0.27.0
+uvicorn[standard]>=0.27.0
 python-multipart>=0.0.6
 
 # Database
