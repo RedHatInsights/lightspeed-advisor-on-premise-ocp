@@ -39,8 +39,6 @@ spec:
                                       value: "https://insights-on-prem-proxy.insights-on-prem.svc.cluster.local:8443/api/v2"
                                     - name: SSL_CERT_DIR
                                       value: "/var/run/secrets/kubernetes.io/serviceaccount"
-                                    - name: POLL_INTERVAL
-                                      value: "1"
 
     # --- NetworkPolicy: hub-only callers that also need the proxy ---
     - objectDefinition:
