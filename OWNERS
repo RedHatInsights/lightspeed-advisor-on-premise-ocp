@@ -1,0 +1,23 @@
+# Prow OWNERS for CI in openshift/release (synced into ci-operator/config and
+# ci-operator/jobs by the autoowners job). Prow OWNERS cannot reference GitHub
+# teams, so this expands @RedHatInsights/obsint-processing (see CODEOWNERS).
+approvers:
+- matysek
+- joselsegura
+- Bee-lee
+- JiriPapousek
+- ikerreyes
+- juandspy
+- Jakub007d
+- lenasolarova
+- jrosecky
+reviewers:
+- matysek
+- joselsegura
+- Bee-lee
+- JiriPapousek
+- ikerreyes
+- juandspy
+- Jakub007d
+- lenasolarova
+- jrosecky
