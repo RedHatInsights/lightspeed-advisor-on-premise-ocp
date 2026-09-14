@@ -51,19 +51,6 @@ Before going forward with deployment steps, check that:
 - The hub is running on ACM 2.17.1+ and all clusters in the fleet are running OpenShift version >= 4.20.
 - MultiClusterHub is created in `open-cluster-management` namespace (it can take several minutes before all components are started).
 - Hub cluster self-management is enabled (default ACM behavior). The hub must be imported into ACM as a managed cluster (with the `local-cluster: "true"` label) so that Policies can target it for certificate management.
-- Pull secret for [quay.io/ccxdev/insights-on-premise-poc](https://quay.io/repository/ccxdev/insights-on-premise-poc) repository is saved as `deploy/02-pull-secret.yml` in the following format:
-
-```yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: ccxdev-insights-on-prem-pull-secret
-  namespace: insights-on-prem
-data:
-  .dockerconfigjson: <INSERT YOUR BASE64-ENCODED PULL SECRET HERE>
-type: kubernetes.io/dockerconfigjson
-```
-
 - (optional) Multicluster Observability Operator is deployed according to [these instructions](https://github.com/stolostron/multicluster-observability-operator/tree/main?tab=readme-ov-file#run-the-operator-in-the-cluster). **This step is required for enabling update risk predictions.**
 
 ### Deployment steps
