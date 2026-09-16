@@ -63,7 +63,7 @@ oc apply -f deploy/
 
 This applies all manifests in `deploy/` to the cluster. It can take a while until all resources are properly deployed.
 
-> **Note:** Installation of Insights on Prem redirects Insights endpoints in ACM console and client deployments from console.redhat.com to Insights on Prem deployed on the hub cluster.
+> **Note:** Installation of Insights on Prem redirects Insights endpoints in the ACM console, MCE console, and Insights Client from console.redhat.com to Insights on Prem deployed on the hub cluster.
 
 #### Secrets
 
@@ -105,8 +105,11 @@ oc get policy -n insights-on-prem
 # Verify insights-client and console env overrides via MCH
 oc get mch multiclusterhub -n open-cluster-management -o json | jq '.spec.overrides.components'
 
-# Verify console URP URL
+# Verify ACM console update risk predictions URL
 oc get configmap console-config -n open-cluster-management -o jsonpath='{.data.UPGRADE_RISKS_PREDICTION_URL}'
+
+# Verify MCE console update risk predictions URL
+oc get configmap console-mce-config -n multicluster-engine -o jsonpath='{.data.UPGRADE_RISKS_PREDICTION_URL}'
 
 # Check logs
 oc logs -f deployment/insights-on-prem -n insights-on-prem
@@ -132,6 +135,8 @@ The Insights section of that page has four panels:
 | Failing operators       |             No              |      Yes       |
 
 **Cluster recommendations** are based on `PolicyReport` custom resources created by `insights-client` in each managed cluster's namespace. **Update risk predictions** are served by Insights on Prem, but rely on metrics collected by MCO into Thanos. **Alerts** and **Failing operators** are read directly from Thanos by the ACM console and do not involve Insights on Prem at all.
+
+To view update-risk predictions served by **MCE console**, open **Infrastructure -> Clusters**, select a managed cluster, choose **Actions -> Upgrade cluster**, and select an available target version. The response is displayed in the update modal's **Update risks** section.
 
 ## On-Demand Data Gathering
 
@@ -277,7 +282,7 @@ On each managed cluster, the **Insights Operator** (in `openshift-insights`) col
 
 On the hub, Insights on Prem validates the client certificate, processes the archive using [insights-core](https://github.com/RedHatInsights/insights-core) rules, and stores results in **PostgreSQL**. The **Insights Client** (in `open-cluster-management`) then polls Insights on Prem for processed results and creates `PolicyReport` custom resources, which surface as **cluster recommendations** in the ACM console.
 
-For **upgrade risk predictions**, the ACM console queries Insights on Prem, which evaluates alerts and operator conditions retrieved from **Thanos** (in `open-cluster-management-observability`, deployed by the Multicluster Observability Operator).
+For **upgrade risk predictions**, the ACM and MCE consoles query Insights on Prem, which evaluates alerts and operator conditions retrieved from **Thanos** (in `open-cluster-management-observability`, deployed by the Multicluster Observability Operator).
 
 HAProxy is deployed as an ACM managed cluster addon on every managed cluster, including the hub itself (which is self-managed). On the hub, HAProxy also serves as the local endpoint for the ACM console and Insights Client.
 
@@ -310,9 +315,9 @@ Two NetworkPolicies restrict ingress to the HAProxy proxy pod (`app: insights-on
 | Policy | Deployed to | Allowed callers |
 | --- | --- | --- |
 | `insights-on-prem-proxy` (`13-spoke-policy.yml`) | All managed clusters (including hub) | All pods from `openshift-insights` (Insights Operator and its periodic gathering jobs) |
-| `insights-on-prem-hub-config` (`14-hub-config.yml`) | Hub only | Insights Client and ACM console, both from `open-cluster-management` |
+| `insights-on-prem-hub-config` (`14-hub-config.yml`) | Hub only | Insights Client and ACM console from `open-cluster-management`, plus MCE console from `multicluster-engine` |
 
-On managed clusters only the first policy applies, so only the Insights Operator can reach HAProxy. On the hub both policies apply and Kubernetes unions their ingress rules, additionally allowing the Insights Client and the ACM console.
+On managed clusters only the first policy applies, so only the Insights Operator can reach HAProxy. On the hub both policies apply and Kubernetes unions their ingress rules, additionally allowing the Insights Client, ACM console, and MCE console.
 
 ## Database Access
 
