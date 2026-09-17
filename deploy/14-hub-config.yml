@@ -85,6 +85,16 @@ spec:
                       ports:
                         - protocol: TCP
                           port: 8443
+                    - from:
+                        - namespaceSelector:
+                            matchLabels:
+                              kubernetes.io/metadata.name: multicluster-engine
+                          podSelector:
+                            matchLabels:
+                              app: console-mce
+                      ports:
+                        - protocol: TCP
+                          port: 8443
 
     # --- Console URP setting ---
     # The console backend reads settings from files in the console-config
@@ -107,6 +117,31 @@ spec:
                 metadata:
                   name: console-config
                   namespace: open-cluster-management
+                data:
+                  UPGRADE_RISKS_PREDICTION_URL: 'https://insights-on-prem-proxy.insights-on-prem.svc:8443/api/insights-results-aggregator/v2/upgrade-risks-prediction'
+
+    # --- MCE console URP setting ---
+    # The MCE console reads settings from files in the console-mce-config
+    # ConfigMap (mounted at /app/config). Its config loader removes an
+    # env-only UPGRADE_RISKS_PREDICTION_URL, so this must be supplied as a
+    # ConfigMap key. The ConfigMap is owned by the MultiClusterEngine and may
+    # be reconciled, therefore keep this as an enforcing policy.
+    - objectDefinition:
+        apiVersion: policy.open-cluster-management.io/v1
+        kind: ConfigurationPolicy
+        metadata:
+          name: insights-on-prem-mce-console-config
+        spec:
+          remediationAction: enforce
+          severity: medium
+          object-templates:
+            - complianceType: musthave
+              objectDefinition:
+                apiVersion: v1
+                kind: ConfigMap
+                metadata:
+                  name: console-mce-config
+                  namespace: multicluster-engine
                 data:
                   UPGRADE_RISKS_PREDICTION_URL: 'https://insights-on-prem-proxy.insights-on-prem.svc:8443/api/insights-results-aggregator/v2/upgrade-risks-prediction'
 ---
