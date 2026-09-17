@@ -46,7 +46,7 @@ fi
 # carrying a build tag (e.g. certifi-2026.6.17-0-py3-none-any.whl), so their hashes
 # differ from PyPI's for the same version: the lockfile has to be *resolved* against
 # this index, not merely annotated with it.
-INDEX_URL="${INDEX_URL:-https://packages.redhat.com/trusted-libraries/python/}"
+INDEX_URL="${INDEX_URL:-https://packages.redhat.com/lightwell/python/validated/simple}"
 
 uv pip compile requirements-in.txt \
     --index-url "${INDEX_URL}" \
