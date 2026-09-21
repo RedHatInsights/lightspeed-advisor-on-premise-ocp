@@ -64,4 +64,7 @@ spec:
   - name: git-auth
     secret:
       secretName: '{{ git_auth_secret }}'
+  - name: netrc
+    secret:
+      secretName: obsint-processing-lightwell-netrc
 status: {}
