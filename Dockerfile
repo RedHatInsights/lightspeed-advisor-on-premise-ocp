@@ -10,6 +10,7 @@ USER root
 # Keep runtime state under /app, make Python logs stream immediately, and use
 # the system trust bundle for outbound HTTPS calls.
 ENV HOME=/app \
+    PIP_NO_INPUT=1 \
     REQUESTS_CA_BUNDLE=/etc/pki/tls/certs/ca-bundle.crt \
     PYTHONUNBUFFERED=1
 
@@ -32,24 +33,29 @@ RUN microdnf install --nodocs -y python3.12-psycopg2 && \
 # independently from application source changes.
 COPY requirements.txt .
 
-# Install Python dependencies into the base image's /opt/venv using uv.
+# Install Python dependencies into the base image's /opt/venv.
 #
-# uv itself is also pinned in requirements.txt. Since uv is the installer, pip is
-# used only to bootstrap that single pinned package. The small temporary
-# requirements file keeps the same index URL and hash-checking as the main
-# lockfile, instead of letting pip fall back to public PyPI.
+# Hermeto provides /cachi2/cachi2.env and prefetched Lightwell wheels for the
+# hermetic build. Local builds do not have /cachi2, so they install the exact
+# pinned versions from requirements.txt from public PyPI after stripping the
+# private index URL and hashes.
 RUN { \
         grep '^--index-url ' requirements.txt; \
         awk '/^uv==/ { emit = 1 } emit { print } emit && /^    # via/ { exit }' requirements.txt; \
     } > /tmp/uv-requirements.txt && \
-    /opt/venv/bin/pip install --no-cache-dir --require-hashes --no-deps \
-        -r /tmp/uv-requirements.txt && \
-    # Hermeto provides /cachi2/cachi2.env, which points at its prefetched wheels
-    # through PIP_FIND_LINKS and disables external indexes with PIP_NO_INDEX. uv does
-    # not consume those pip settings automatically, so source cachi2.env and pass the
-    # local wheel directory explicitly to uv.
+    awk ' \
+        /^--index-url / { next } \
+        /^[[:space:]]*--hash=/ { next } \
+        /^[[:space:]]*#/ { next } \
+        NF == 0 { next } \
+        { sub(/[[:space:]]*\\[[:space:]]*$/, ""); print } \
+    ' requirements.txt > /tmp/requirements-no-hashes.txt && \
     if [ -f /cachi2/cachi2.env ]; then \
         . /cachi2/cachi2.env && \
+        /opt/venv/bin/pip install --no-cache-dir --require-hashes --no-deps \
+            --no-index \
+            --find-links "${PIP_FIND_LINKS}" \
+            -r /tmp/uv-requirements.txt && \
         /opt/venv/bin/uv pip install \
             --python /opt/venv/bin/python \
             --offline \
@@ -59,10 +65,10 @@ RUN { \
             -r requirements.txt && \
         /opt/venv/bin/uv pip check --python /opt/venv/bin/python; \
     else \
-        /opt/venv/bin/uv pip install \
-            --python /opt/venv/bin/python \
-            --no-cache \
-            -r requirements.txt; \
+        /opt/venv/bin/pip install --no-cache-dir \
+            --index-url https://pypi.org/simple \
+            -r /tmp/requirements-no-hashes.txt && \
+        /opt/venv/bin/pip check; \
     fi && \
     /opt/venv/bin/pip uninstall -y uv && \
     find /opt/venv -type d -name __pycache__ -prune -exec rm -rf '{}' + && \
