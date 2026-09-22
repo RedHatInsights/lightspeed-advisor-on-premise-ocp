@@ -17,12 +17,12 @@
 # Dockerfile flips include-system-site-packages=true in /opt/venv/pyvenv.cfg.
 #
 # Index flags:
-#   --index-url       resolve from Red Hat's trusted-libraries index instead of PyPI.
-#                     Hermeto reads the index out of requirements.txt, so no .tekton
-#                     change is needed.
+#   --index-url       resolve from Red Hat's Lightwell validated index instead of PyPI.
+#                     Hermeto reads the index out of requirements.txt; authentication
+#                     is provided by the Tekton netrc workspace secret.
 #   --emit-index-url  write the "--index-url ..." directive into requirements.txt.
-#                     Without it the directive is dropped and both Hermeto and the
-#                     Dockerfile's pip install silently fall back to PyPI.
+#                     Without it the directive is dropped and Hermeto falls back to
+#                     PyPI during dependency prefetch.
 #   --upgrade         required for correctness, not freshness. uv reads the existing
 #                     output file as resolution preferences *including its --hash
 #                     lines*, so without --upgrade any package whose version doesn't
@@ -42,7 +42,7 @@ if ! command -v uv >/dev/null 2>&1; then
     exit 1
 fi
 
-# Red Hat's curated "trusted libraries" index. Its wheels are Red Hat rebuilds
+# Red Hat's Lightwell validated index. Its wheels are Red Hat rebuilds
 # carrying a build tag (e.g. certifi-2026.6.17-0-py3-none-any.whl), so their hashes
 # differ from PyPI's for the same version: the lockfile has to be *resolved* against
 # this index, not merely annotated with it.

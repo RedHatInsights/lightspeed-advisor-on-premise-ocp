@@ -433,13 +433,13 @@ For purposes of running the addon locally without need for the cluster, we maint
 
 The Dockerfile is built hermetically by Konflux (network access disabled during the build), using [Hermeto](https://hermetoproject.github.io/hermeto/) to prefetch both pip and RPM dependencies beforehand. See `requirements-in.txt` (source compiled by `uv`), `requirements.txt` (fully-pinned, hashed pip lockfile), and `rpms.in.yaml`/`rpms.lock.yaml` (RPM lockfile).
 
-pip packages come from Red Hat's curated **trusted-libraries** index rather than public PyPI. Hermeto picks it up from the `--index-url https://packages.redhat.com/trusted-libraries/python/` directive at the top of `requirements.txt`, which `scripts/update_requirements.sh` emits — there is nothing to configure in `.tekton/*.yaml`.
+Konflux/Hermeto pip packages come from Red Hat's **Lightwell validated** index rather than public PyPI. Hermeto picks it up from the `--index-url https://packages.redhat.com/lightwell/python/validated/simple` directive at the top of `requirements.txt`, which `scripts/update_requirements.sh` emits. Authentication for that index is provided by the Tekton `netrc` workspace secret (`obsint-processing-lightwell-netrc` in `.tekton/*.yaml`).
 
-Python dependencies are prefetched as **wheels wherever they are pure-Python**, and compiled dependencies are avoided where a non-wheel form exists:
+Python dependencies are prefetched as **wheels wherever they are pure-Python**, and compiled dependencies are avoided where practical:
 
 - **From RPM:** the PostgreSQL driver ships as `python3.12-psycopg2` (+ `libpq`) instead of the compiled `psycopg-binary` wheel. SQLAlchemy's default driver for the plain `postgresql://` URL (see `app/config.py`) is psycopg2, so no code change is needed. RPM modules install into `/usr/lib*/python3.12/site-packages`, so the Dockerfile flips `include-system-site-packages=true` in `/opt/venv/pyvenv.cfg` to make them visible to the venv.
-- **Dropped extras:** using plain `uvicorn` (not `uvicorn[standard]`) removes the compiled `uvloop`, `httptools`, `watchfiles` and `websockets` wheels — the app drives uvicorn programmatically and uses none of them.
-- **Already in the base image:** `PyYAML` is pre-installed in the base image's `/opt/venv` and nothing in `requirements-in.txt` pulls it in, so it never reaches the lockfile. `charset-normalizer`, `markupsafe` and `msgpack` also ship in the base venv but *are* pinned in `requirements.txt`, so pip installs the resolved versions over the base copies.
+- **Uvicorn standard extras:** `uvicorn[standard]` is currently kept, so `uvloop`, `httptools`, `watchfiles`, `websockets` and `PyYAML` are resolved and pinned in `requirements.txt`.
+- **Already in the base image:** `charset-normalizer`, `markupsafe`, `msgpack` and `PyYAML` also ship in the base venv. They are pinned in `requirements.txt` when pulled in transitively, so the lockfile constrains the expected runtime versions even when the installer can reuse the base image copies.
 - **Unavoidable compiled wheels:** `pydantic-core` (Rust; required by Pydantic v2 / FastAPI) and `greenlet` (a SQLAlchemy dependency on x86_64) have no RHEL/UBI RPM and no pure-Python form, so they remain binary wheels.
 - **Test-only dependencies:** `pytest` and friends are not in `requirements-in.txt` — the Dockerfile copies only `app/`, `migrations/` and `config.yml`, so `tests/` never enters the image. CI installs them from `requirements-test.txt` against public PyPI instead.
 
@@ -455,17 +455,17 @@ bash scripts/update_requirements.sh
 
 # Equivalent manual command:
 uv pip compile requirements-in.txt \
-  --index-url https://packages.redhat.com/trusted-libraries/python/ \
+  --index-url https://packages.redhat.com/lightwell/python/validated/simple \
   --emit-index-url --upgrade --generate-hashes \
   --python-version 3.12 --python-platform x86_64-manylinux_2_34 \
   -o requirements.txt
 ```
 
-Every package must exist on the trusted-libraries index: Hermeto supports `--index-url` in a
-requirements file but not `--extra-index-url`, so there is no PyPI fallback. If `uv` reports
-"no version of *X*", check what the index actually carries
-(`curl -sS https://packages.redhat.com/trusted-libraries/python/<pkg>/`) and pin to that
-version — the index is curated and often carries only one.
+Every package must exist on the Lightwell validated index: Hermeto supports `--index-url` in a
+requirements file but not `--extra-index-url`, so there is no PyPI fallback in the hermetic
+prefetch. If `uv` reports "no version of *X*", check what the index actually carries
+(`curl -sS https://packages.redhat.com/lightwell/python/validated/simple/<pkg>/`) and pin to
+that version — the index is curated and often carries only one.
 
 `--upgrade` is there for **correctness, not freshness**, and must not be dropped. Red Hat
 rebuilds wheels with a build tag (`certifi-2026.6.17-0-py3-none-any.whl`), so their hashes
@@ -482,9 +482,10 @@ package to the newest version the index carries, so review the diff before commi
 than built from source, and no build-backend lockfile is required.
 
 The lockfile is not filtered: everything the resolution produces is pinned, even where the
-base image's `/opt/venv` already ships a copy. If you move a dependency to an RPM and want it
-kept out of the pip prefetch entirely, add a `--no-emit-package <name>` flag to
-`scripts/update_requirements.sh`.
+base image's `/opt/venv` already ships a copy. Local `podman build` runs do not have
+Hermeto's `/cachi2` directory, so the Dockerfile strips the private index URL and hashes from
+`requirements.txt` and installs the same pinned versions from public PyPI. Konflux/Hermeto
+builds continue to install the hashed lockfile fully offline from prefetched Lightwell wheels.
 
 ### Regenerating rpms.lock.yaml
 

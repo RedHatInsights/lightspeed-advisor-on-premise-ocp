@@ -6,10 +6,8 @@ wheel>=0.48.0
 
 # FastAPI and web framework
 fastapi>=0.109.0
-# Plain uvicorn (not uvicorn[standard]): the app drives uvicorn programmatically
-# (uvicorn.Config/Server in app/main.py) and uses none of the [standard] extras.
-# [standard] pulls in four compiled wheels — uvloop, httptools, watchfiles and
-# websockets — none of which we need. uvicorn itself is pure Python.
+# Keep uvicorn[standard] so local/public-PyPI builds and the runtime image include
+# the same optional server dependencies resolved in the Lightwell lockfile.
 uvicorn[standard]>=0.27.0
 python-multipart>=0.0.6
 
@@ -25,7 +23,7 @@ alembic>=1.13.0
 # ccx-rules-ocp is already installed in the base image, so it is not listed here.
 # insights-core>=3.2.26
 
-# Pinned because 0.14.4 is the only version Red Hat's trusted-libraries index carries.
+# Pinned because 0.14.4 is the only version the Lightwell validated index carries.
 # The earlier 0.14.3 pin worked around PackageWithCorruptLockfileRejected: the 0.14.4 sdist
 # pulls in uv-build as a build backend, whose Cargo.lock doesn't match its Cargo.toml, which
 # Hermeto's `cargo vendor --locked` rejects. That no longer applies — the index serves a
@@ -38,13 +36,12 @@ httpx>=0.25.0
 
 # Configuration and utilities
 pydantic>=2.5.0
-# PyYAML is NOT installed from pip here: it already ships in the base image's
-# /opt/venv, and nothing left in this file pulls it in transitively, so it no longer
-# appears in requirements.txt at all. charset-normalizer (a transitive dep of requests)
-# also ships in the base venv but IS pinned in requirements.txt, so pip installs the
-# version this repo resolved over the base image's copy.
+# PyYAML, charset-normalizer, markupsafe and msgpack also ship in the base
+# image's /opt/venv. They are still pinned in requirements.txt when pulled in
+# transitively, so the lockfile constrains the expected runtime versions even
+# when the installer can reuse the base image copies.
 
 # Testing dependencies deliberately live in requirements-test.txt, not here: the
 # Dockerfile copies only app/, migrations/ and config.yml, so tests/ never enters the
 # image and a test runner in it would be dead weight. pytest-cov is also absent from
-# Red Hat's trusted-libraries index, which the hermetic lockfile resolves against.
+# the Lightwell validated index, which the hermetic lockfile resolves against.

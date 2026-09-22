@@ -39,6 +39,7 @@ OUTPUT_FILE="${REPO_ROOT}/rpms.lock.yaml"
 REPO_FILE="${REPO_ROOT}/redhat.repo"
 DOCKERFILE="${REPO_ROOT}/Dockerfile"
 DOCKERCONFIG_FILE="${SCRIPT_DIR}/.dockerconfig.json"
+RPM_LOCKFILE_PROTOTYPE="${RPM_LOCKFILE_PROTOTYPE:-${HOME}/.local/bin/rpm-lockfile-prototype}"
 
 print_podman_hint() {
     local volume_mount="${REPO_ROOT}:/work"
@@ -114,6 +115,9 @@ cleanup() {
 trap cleanup EXIT
 
 dnf install -y python3-pip python3-dnf skopeo git
+# pip --user installs the rpm-lockfile-prototype console script under ~/.local/bin
+# in the UBI container. RPM_LOCKFILE_PROTOTYPE can override that path when the
+# tool is preinstalled elsewhere.
 python3 -m pip install --user git+https://github.com/konflux-ci/rpm-lockfile-prototype.git
 
 export REGISTRY_AUTH_FILE="${DOCKERCONFIG_FILE}"
@@ -124,7 +128,7 @@ export REGISTRY_AUTH_FILE="${DOCKERCONFIG_FILE}"
 skopeo copy --override-arch amd64 "docker://${BASE_IMAGE}" "dir:${IMAGE_DIR}"
 python3 "${SCRIPT_DIR}/lib_rpm_lockfile.py" extract-repo "${IMAGE_DIR}" "${REPO_FILE}"
 
-~/.local/bin/rpm-lockfile-prototype "${INPUT_FILE}" --outfile "${OUTPUT_FILE}"
+"${RPM_LOCKFILE_PROTOTYPE}" "${INPUT_FILE}" --outfile "${OUTPUT_FILE}"
 
 # The resolver used public UBI baseurls above. Emit legacy/RHEL download URLs in
 # the lockfile while preserving the UBI-resolved package checksums.

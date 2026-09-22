@@ -1,11 +1,11 @@
 # Dependencies for running unit tests in CI
 # This file excludes CCX packages that require the internal Nexus repository.
 #
-# Unlike the hermetic image build (which sources psycopg2, PyYAML and
-# charset-normalizer from RPMs — see rpms.in.yaml), CI runs on stock GitHub
-# runners with only public PyPI, so those come from pip here. The unit tests
-# use an in-memory SQLite engine (tests/conftest.py), so no psycopg driver is
-# needed at all.
+# Unlike the hermetic image build, CI runs on stock GitHub runners with only
+# public PyPI. The image gets psycopg2 from the python3.12-psycopg2 RPM, while
+# PyYAML and charset-normalizer are regular pip dependencies pinned in
+# requirements.txt when pulled in transitively. The unit tests use an in-memory
+# SQLite engine (tests/conftest.py), so no psycopg driver is needed here.
 
 # FastAPI and web framework
 fastapi>=0.109.0

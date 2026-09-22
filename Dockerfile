@@ -7,8 +7,8 @@ FROM registry.redhat.io/lightspeed-services-ocp/ocp-rules-rhel9:2026.09.22
 # wiring in the inherited rule content. The final runtime user is reset below.
 USER root
 
-# Keep runtime state under /app, make Python logs stream immediately, and use
-# the system trust bundle for outbound HTTPS calls.
+# Keep runtime state under /app, make Python logs stream immediately, disable
+# interactive pip prompts, and use the system trust bundle for outbound HTTPS calls.
 ENV HOME=/app \
     PIP_NO_INPUT=1 \
     REQUESTS_CA_BUNDLE=/etc/pki/tls/certs/ca-bundle.crt \
