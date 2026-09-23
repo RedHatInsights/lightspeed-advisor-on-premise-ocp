@@ -1,11 +1,5 @@
 # hadolint ignore=DL3007  # We prefer to use latest as this image is not used in production
-FROM registry.access.redhat.com/ubi9/ubi:latest AS oc-builder
-# Bake a stable oc client into the image so the e2e step doesn't download one at
-# runtime. We only use standard oc commands, so the latest stable client is fine
-# against any recent cluster version.
-RUN curl -sSL https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz \
-        -o /tmp/oc.tar.gz \
-    && tar -xzf /tmp/oc.tar.gz -C /usr/bin oc
+FROM registry.redhat.io/openshift4/ose-cli-rhel9:latest AS oc-source
 
 # hadolint ignore=DL3007  # We prefer to use latest as this image is not used in production
 FROM registry.access.redhat.com/ubi9-minimal:latest
@@ -27,8 +21,8 @@ RUN microdnf install --nodocs -y \
     && pip install --no-cache-dir -U pip setuptools wheel \
     && microdnf clean all
 
-# oc client, baked from the builder stage above.
-COPY --from=oc-builder /usr/bin/oc /usr/bin/oc
+# oc client, copied from the OpenShift CLI image.
+COPY --from=oc-source /usr/bin/oc /usr/bin/oc
 
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt

@@ -16,11 +16,7 @@ tests/
 
 The `Dockerfile` builds a runtime image with all test tooling pre-installed (Python, pytest, curl, tar, jq). Test code is **not** included in the image -- it is cloned at runtime from the PR or branch being tested.
 
-The `oc` CLI is intentionally **not** baked into the image. It is downloaded at runtime from the target OCP cluster's downloads route to guarantee version alignment:
-
-```bash
-curl -kL https://downloads-openshift-console.apps.<cluster>/amd64/linux/oc.tar.gz | tar xz -C /usr/local/bin
-```
+The `oc` CLI is baked into the image.
 
 ### CI Pipelines
 
