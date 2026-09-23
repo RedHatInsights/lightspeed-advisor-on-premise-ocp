@@ -10,6 +10,8 @@ USER root
 # Keep runtime state under /app, make Python logs stream immediately, disable
 # interactive pip prompts, and use the system trust bundle for outbound HTTPS calls.
 ENV HOME=/app \
+    VIRTUAL_ENV=/opt/venv \
+    PATH="/opt/venv/bin:${PATH}" \
     PIP_NO_INPUT=1 \
     REQUESTS_CA_BUNDLE=/etc/pki/tls/certs/ca-bundle.crt \
     PYTHONUNBUFFERED=1
@@ -18,10 +20,11 @@ ENV HOME=/app \
 # in config/defaults resolve predictably.
 WORKDIR /app
 
+# --- RPM dependencies -------------------------------------------------------
 # Install the PostgreSQL driver as an RPM (python3.12-psycopg2, + libpq) rather
 # than the compiled psycopg-binary wheel. psycopg2 is SQLAlchemy's default driver
-# for the plain "postgresql://" URL. RPM modules are stored in /usr/lib*/python3.12/site-packages,
-# Tell the /opt/venv to use system packages. (pyvenv.cfg contains include-system-site-packages=true)
+# for the plain "postgresql://" URL. RPM modules are stored in /usr/lib*/python3.12/site-packages;
+# make them visible inside /opt/venv by enabling system site packages.
 # hadolint ignore=DL3041
 RUN microdnf install --nodocs -y python3.12-psycopg2 && \
     microdnf clean all && \
@@ -33,48 +36,75 @@ RUN microdnf install --nodocs -y python3.12-psycopg2 && \
 # independently from application source changes.
 COPY requirements.txt .
 
-# Install Python dependencies into the base image's /opt/venv.
-#
-# Hermeto provides /cachi2/cachi2.env and prefetched Lightwell wheels for the
-# hermetic build. Local builds do not have /cachi2, so they install the exact
-# pinned versions from requirements.txt from public PyPI after stripping the
-# private index URL and hashes.
-RUN { \
-        grep '^--index-url ' requirements.txt; \
-        awk '/^uv==/ { emit = 1 } emit { print } emit && /^    # via/ { exit }' requirements.txt; \
-    } > /tmp/uv-requirements.txt && \
-    awk ' \
-        /^--index-url / { next } \
-        /^[[:space:]]*--hash=/ { next } \
-        /^[[:space:]]*#/ { next } \
-        NF == 0 { next } \
-        { sub(/[[:space:]]*\\[[:space:]]*$/, ""); print } \
-    ' requirements.txt > /tmp/requirements-no-hashes.txt && \
+# --- Create non-hashed Python dependency list for local build ----------------
+# requirements.txt is Lightwell-resolved and hash-locked. Generate helper files
+# for the two install paths: hashed uv bootstrap for Hermeto, and exact pins
+# without Lightwell metadata for local public-PyPI builds. PyPI hashes are
+# different than the ones in Lightwell.
+RUN python - <<'PY'
+from pathlib import Path
+import re
+requirements = Path("requirements.txt").read_text().splitlines()
+# Keep the Lightwell index and the complete uv block, including hashes, so
+# Hermeto can bootstrap the pinned uv wheel from its prefetched artifacts.
+uv_bootstrap = [line for line in requirements if line.startswith("--index-url ")]
+emit_uv = False
+for line in requirements:
+    if line.startswith("uv=="):
+        emit_uv = True
+    if emit_uv:
+        uv_bootstrap.append(line)
+    if emit_uv and line.startswith("    # via"):
+        break
+# Keep exact package pins for local builds, but remove Lightwell-only metadata
+# that would make public PyPI installs fail.
+local_public_pypi = []
+for line in requirements:
+    stripped = line.strip()
+    if (
+        not stripped
+        or line.startswith("--index-url ")
+        or stripped.startswith("--hash=")
+        or stripped.startswith("#")
+    ):
+        continue
+    local_public_pypi.append(re.sub(r"\s*\\\s*$", "", line))
+Path("/tmp/uv-requirements.txt").write_text("\n".join(uv_bootstrap) + "\n")
+Path("/tmp/requirements-no-hashes.txt").write_text("\n".join(local_public_pypi) + "\n")
+PY
+
+# --- Install Python dependencies -----------------------------------------------
+# Konflux/Hermeto uses /cachi2 prefetched wheels and installs fully offline.
+# Local builds do not have /cachi2, so they install the same pinned versions
+# from public PyPI. uv is removed afterwards because it is only a build-time installer.
+RUN set -eu; \
     if [ -f /cachi2/cachi2.env ]; then \
-        . /cachi2/cachi2.env && \
-        /opt/venv/bin/pip install --no-cache-dir --require-hashes --no-deps \
+        . /cachi2/cachi2.env; \
+        pip install --no-cache-dir --require-hashes --no-deps \
             --no-index \
             --find-links "${PIP_FIND_LINKS}" \
-            -r /tmp/uv-requirements.txt && \
-        /opt/venv/bin/uv pip install \
-            --python /opt/venv/bin/python \
+            -r /tmp/uv-requirements.txt; \
+        uv pip install \
+            --python "${VIRTUAL_ENV}/bin/python" \
             --offline \
             --no-index \
             --find-links "${PIP_FIND_LINKS}" \
             --no-cache \
-            -r requirements.txt && \
-        /opt/venv/bin/uv pip check --python /opt/venv/bin/python; \
+            -r requirements.txt; \
+        uv pip check --python "${VIRTUAL_ENV}/bin/python"; \
     else \
-        /opt/venv/bin/pip install --no-cache-dir \
+        pip install --no-cache-dir \
             --index-url https://pypi.org/simple \
-            -r /tmp/requirements-no-hashes.txt && \
-        /opt/venv/bin/pip check; \
-    fi && \
-    /opt/venv/bin/pip uninstall -y uv && \
-    find /opt/venv -type d -name __pycache__ -prune -exec rm -rf '{}' + && \
-    rm -rf /root/.cache /tmp/* && \
-    mkdir -p /tmp/insights-uploads && chmod 777 /tmp/insights-uploads
+            -r /tmp/requirements-no-hashes.txt; \
+        pip check; \
+    fi; \
+    pip uninstall -y uv; \
+    find "${VIRTUAL_ENV}" -type d -name __pycache__ -prune -exec rm -rf '{}' +; \
+    rm -rf /root/.cache /tmp/*; \
+    mkdir -p /tmp/insights-uploads; \
+    chmod 777 /tmp/insights-uploads
 
+# --- Application runtime files ---------------------------------------------
 # Copy only the runtime inputs. Test files and local development artifacts are
 # intentionally excluded from the final image.
 COPY app ./app
