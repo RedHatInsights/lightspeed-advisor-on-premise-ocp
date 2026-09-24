@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NAMESPACE="obsint-processing-tenant"
-COMPONENT="insights-on-prem"
-ITS_NAME="insights-on-prem-eaas-e2e"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=ci/common.sh
+source "${SCRIPT_DIR}/common.sh"
 
 usage() {
   echo "Usage: $0 [options] [commit-sha]"
   echo ""
-  echo "Finds the Konflux Snapshot built from the given commit and triggers"
-  echo "the EaaS e2e test pipeline via the IntegrationTestScenario."
+  echo "Finds the Konflux Snapshot built from the given commit and triggers the"
+  echo "IOP e2e test pipeline via the IntegrationTestScenario (${ITS_NAME})."
   echo ""
   echo "If no commit is provided, uses HEAD of the current git repo."
   echo ""

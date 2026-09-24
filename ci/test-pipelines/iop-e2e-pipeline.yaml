@@ -1,4 +1,4 @@
-# ITS managed via konflux-release-data (insights-on-prem-eaas-e2e)
+# ITS managed via konflux-release-data (insights-on-prem-e2e)
 ---
 apiVersion: tekton.dev/v1beta1
 kind: Pipeline
@@ -30,11 +30,6 @@ spec:
         OCP version for ephemeral clusters (e.g. "4.17"). Used as the
         release channel version in the OpenShift CI provisioning request.
       default: "4.21"
-    - name: DEBUG_DUMP_CREDENTIALS
-      description: >-
-        When "true", print cluster kubeconfigs and admin passwords to logs.
-        Only enable for debugging ephemeral test failures.
-      default: "false"
 
   tasks:
     # ── Hub cluster (m5.2xlarge) ─────────────────────────────────────────
@@ -122,6 +117,24 @@ spec:
               #!/usr/bin/env bash
               set -euo pipefail
 
+              # wait_for <timeout_s> <description> <command...>
+              # Polls <command> every 10s until it exits 0 or the timeout elapses.
+              # Returns 1 on timeout so the caller can dump diagnostics and exit.
+              wait_for() {
+                local timeout=$1 desc=$2; shift 2
+                local elapsed=0
+                echo "Waiting for ${desc} (timeout: ${timeout}s)..."
+                until "$@" &>/dev/null; do
+                  if (( elapsed >= timeout )); then
+                    echo "ERROR: timed out after ${timeout}s waiting for ${desc}"
+                    return 1
+                  fi
+                  sleep 10
+                  elapsed=$((elapsed + 10))
+                done
+                echo "  ${desc}: ready"
+              }
+
               echo "=== Install ACM (release-${ACM_VERSION}) ==="
 
               cat <<EOF | oc apply -f -
@@ -152,28 +165,20 @@ spec:
                 sourceNamespace: openshift-marketplace
               EOF
 
-              echo "Waiting for ACM CRDs..."
-              ELAPSED=0
-              until oc get crd multiclusterhubs.operator.open-cluster-management.io &>/dev/null; do
-                if [[ "$ELAPSED" -ge 600 ]]; then
-                  echo "ERROR: ACM CRDs not found after 10 minutes"
-                  echo "--- Subscription status ---"
-                  oc get subscription acm-operator-subscription -n open-cluster-management -o yaml 2>/dev/null || true
-                  echo "--- CSVs ---"
-                  oc get csv -n open-cluster-management 2>/dev/null || true
-                  echo "--- CatalogSource pods ---"
-                  oc get pods -n openshift-marketplace 2>/dev/null || true
-                  exit 1
-                fi
-                sleep 10
-                ELAPSED=$((ELAPSED + 10))
-              done
+              wait_for 600 "ACM CRDs" \
+                oc get crd multiclusterhubs.operator.open-cluster-management.io || {
+                echo "--- Subscription status ---"
+                oc get subscription acm-operator-subscription -n open-cluster-management -o yaml 2>/dev/null || true
+                echo "--- CSVs ---"
+                oc get csv -n open-cluster-management 2>/dev/null || true
+                echo "--- CatalogSource pods ---"
+                oc get pods -n openshift-marketplace 2>/dev/null || true
+                exit 1
+              }
 
-              echo "Waiting for MCH operator pod..."
-              until oc get pod -n open-cluster-management -l name=multiclusterhub-operator \
-                --no-headers 2>/dev/null | grep -q .; do
-                sleep 5
-              done
+              wait_for 300 "MCH operator pod to appear" \
+                bash -c 'oc get pod -n open-cluster-management -l name=multiclusterhub-operator --no-headers 2>/dev/null | grep -q .' \
+                || exit 1
               oc wait pod -n open-cluster-management -l name=multiclusterhub-operator \
                 --for=condition=Ready --timeout=300s
 
@@ -197,26 +202,15 @@ spec:
                     enabled: false
               MCH
 
-              echo "Waiting for MultiClusterHub to reach Running state (timeout: 900s)..."
-              ELAPSED=0
-              while true; do
-                PHASE=$(oc get multiclusterhub multiclusterhub -n open-cluster-management \
-                  -o jsonpath='{.status.phase}' 2>/dev/null || true)
-                if [[ "$PHASE" == "Running" ]]; then
-                  echo "MultiClusterHub is Running"
-                  break
-                fi
-                if [[ "$ELAPSED" -ge 900 ]]; then
-                  echo "ERROR: MCH not Running after 900s (current phase: ${PHASE})"
-                  oc get multiclusterhub multiclusterhub -n open-cluster-management -o yaml
-                  exit 1
-                fi
-                if [[ $((ELAPSED % 60)) -eq 0 ]]; then
-                  echo "  MCH phase: ${PHASE:-unknown} (${ELAPSED}s elapsed)"
-                fi
-                sleep 15
-                ELAPSED=$((ELAPSED + 15))
-              done
+              mch_running() {
+                [[ "$(oc get multiclusterhub multiclusterhub -n open-cluster-management \
+                  -o jsonpath='{.status.phase}' 2>/dev/null)" == "Running" ]]
+              }
+              wait_for 900 "MultiClusterHub to reach Running" mch_running || {
+                echo "--- MultiClusterHub ---"
+                oc get multiclusterhub multiclusterhub -n open-cluster-management -o yaml
+                exit 1
+              }
 
               echo "=== ACM installation complete ==="
 
@@ -226,16 +220,12 @@ spec:
         - acm-install
         - provision-managed
       params:
-        - name: DEBUG_DUMP_CREDENTIALS
-          value: "$(params.DEBUG_DUMP_CREDENTIALS)"
         - name: hubClusterCredentialsSecretRef
           value: $(tasks.provision-hub.results.secretRef)
         - name: managedClusterCredentialsSecretRef
           value: $(tasks.provision-managed.results.secretRef)
       taskSpec:
         params:
-          - name: DEBUG_DUMP_CREDENTIALS
-            type: string
           - name: hubClusterCredentialsSecretRef
             type: string
           - name: managedClusterCredentialsSecretRef
@@ -248,51 +238,6 @@ spec:
             secret:
               secretName: $(params.managedClusterCredentialsSecretRef)
         steps:
-          - name: dump-credentials
-            env:
-              - name: DEBUG_DUMP_CREDENTIALS
-                value: "$(params.DEBUG_DUMP_CREDENTIALS)"
-            volumeMounts:
-              - name: hub-credentials
-                mountPath: /var/run/secrets/hub-cluster
-                readOnly: true
-              - name: managed-credentials
-                mountPath: /var/run/secrets/managed-cluster
-                readOnly: true
-            image: registry.redhat.io/openshift4/ose-cli:latest
-            script: |
-              #!/usr/bin/env bash
-              set -euo pipefail
-
-              if [[ "${DEBUG_DUMP_CREDENTIALS}" != "true" ]]; then
-                echo "DEBUG_DUMP_CREDENTIALS is not 'true' — skipping."
-                exit 0
-              fi
-
-              echo "############################################################"
-              echo "# WARNING: cluster admin credentials follow.               #"
-              echo "# Ephemeral clusters are destroyed when this run ends.     #"
-              echo "############################################################"
-
-              for CLUSTER_LABEL in HUB MANAGED; do
-                if [[ "${CLUSTER_LABEL}" == "HUB" ]]; then
-                  CRED_PATH="/var/run/secrets/hub-cluster"
-                else
-                  CRED_PATH="/var/run/secrets/managed-cluster"
-                fi
-
-                API_SERVER=$(KUBECONFIG="${CRED_PATH}/kubeconfig" oc config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null || echo "unknown")
-                PASSWORD=$(cat "${CRED_PATH}/kubeAdminPassword" 2>/dev/null || echo "unknown")
-
-                echo "=== ${CLUSTER_LABEL} CLUSTER ==="
-                echo "API Server:  ${API_SERVER}"
-                echo "Username:    kubeadmin"
-                echo "--- ${CLUSTER_LABEL} password ---"
-                echo "${PASSWORD}"
-                echo "--- ${CLUSTER_LABEL} kubeconfig (base64) ---"
-                base64 -w0 "${CRED_PATH}/kubeconfig"; echo
-              done
-
           - name: import-cluster
             env:
               - name: KUBECONFIG
@@ -408,6 +353,24 @@ spec:
               #!/usr/bin/env bash
               set -euo pipefail
 
+              # wait_for <timeout_s> <description> <command...>
+              # Polls <command> every 10s until it exits 0 or the timeout elapses.
+              # Returns 1 on timeout so the caller can dump diagnostics and exit.
+              wait_for() {
+                local timeout=$1 desc=$2; shift 2
+                local elapsed=0
+                echo "Waiting for ${desc} (timeout: ${timeout}s)..."
+                until "$@" &>/dev/null; do
+                  if (( elapsed >= timeout )); then
+                    echo "ERROR: timed out after ${timeout}s waiting for ${desc}"
+                    return 1
+                  fi
+                  sleep 10
+                  elapsed=$((elapsed + 10))
+                done
+                echo "  ${desc}: ready"
+              }
+
               echo "Installing dependencies..."
               dnf -y install jq git >/dev/null 2>&1
 
@@ -443,38 +406,27 @@ spec:
               oc set image deployment/insights-on-prem -n insights-on-prem \
                 "insights-on-prem=${IOP_IMAGE}"
 
-              echo "Waiting for cert-manager operator..."
-              ELAPSED=0
-              until oc get deployment cert-manager -n cert-manager &>/dev/null; do
-                if [[ "$ELAPSED" -ge 600 ]]; then
-                  echo "ERROR: cert-manager deployment not found after 10 minutes"
-                  oc get csv -n cert-manager-operator 2>/dev/null || true
-                  exit 1
-                fi
-                sleep 10
-                ELAPSED=$((ELAPSED + 10))
-              done
+              wait_for 600 "cert-manager deployment" \
+                oc get deployment cert-manager -n cert-manager || {
+                oc get csv -n cert-manager-operator 2>/dev/null || true
+                exit 1
+              }
               oc rollout status deployment/cert-manager -n cert-manager --timeout=300s
-              echo "cert-manager is ready"
 
-              echo "Waiting for IOP cert secrets (created by ACM Policy + cert-manager)..."
-              ELAPSED=0
-              until oc get secret insights-on-prem-server-tls -n insights-on-prem &>/dev/null && \
-                    oc get secret insights-on-prem-client-ca -n insights-on-prem &>/dev/null; do
-                if [[ "$ELAPSED" -ge 600 ]]; then
-                  echo "ERROR: Cert secrets not created after 10 minutes"
-                  echo "--- Policies ---"
-                  oc get policy -n insights-on-prem 2>/dev/null || true
-                  echo "--- Certificates ---"
-                  oc get certificate -n insights-on-prem 2>/dev/null || true
-                  echo "--- cert-manager pods ---"
-                  oc get pods -n cert-manager 2>/dev/null || true
-                  exit 1
-                fi
-                sleep 10
-                ELAPSED=$((ELAPSED + 10))
-              done
-              echo "Cert secrets are ready"
+              # Cert secrets are created by the ACM Policy + cert-manager.
+              cert_secrets_ready() {
+                oc get secret insights-on-prem-server-tls -n insights-on-prem &>/dev/null &&
+                  oc get secret insights-on-prem-client-ca -n insights-on-prem &>/dev/null
+              }
+              wait_for 600 "IOP cert secrets" cert_secrets_ready || {
+                echo "--- Policies ---"
+                oc get policy -n insights-on-prem 2>/dev/null || true
+                echo "--- Certificates ---"
+                oc get certificate -n insights-on-prem 2>/dev/null || true
+                echo "--- cert-manager pods ---"
+                oc get pods -n cert-manager 2>/dev/null || true
+                exit 1
+              }
 
               echo "Waiting for PostgreSQL..."
               oc rollout status deployment/insights-postgres -n insights-on-prem --timeout=120s

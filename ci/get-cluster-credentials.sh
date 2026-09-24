@@ -1,14 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-NAMESPACE="obsint-processing-tenant"
-ITS_NAME="insights-on-prem-eaas-e2e"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=ci/common.sh
+source "${SCRIPT_DIR}/common.sh"
 
 usage() {
   echo "Usage: $0 [pipelinerun-name]"
   echo ""
   echo "Reads the kubeconfigs produced by the provision-ephemeral-cluster tasks"
-  echo "and creates two oc contexts: eaas-hub and eaas-managed."
+  echo "and creates two oc contexts: ${HUB_CONTEXT} and ${MANAGED_CONTEXT}."
   echo ""
   echo "If no PipelineRun name is given, finds the latest one with the"
   echo "debug.iop/hold-on-failure=true label."
@@ -60,8 +61,14 @@ secret_for_role() {
 
 ORIGINAL_CTX=$(oc config current-context 2>/dev/null || true)
 
+# role -> oc context name
+declare -A ROLE_CONTEXT=(
+  [hub]="${HUB_CONTEXT}"
+  [managed]="${MANAGED_CONTEXT}"
+)
+
 for role in hub managed; do
-  CTX="eaas-${role}"
+  CTX="${ROLE_CONTEXT[$role]}"
   SECRET=$(secret_for_role "${role}")
 
   if [[ -z "${SECRET}" ]]; then
@@ -123,7 +130,7 @@ fi
 
 echo ""
 for role in hub managed; do
-  CTX="eaas-${role}"
+  CTX="${ROLE_CONTEXT[$role]}"
   API=$(oc --context="${CTX}" whoami --show-server 2>/dev/null || echo "?")
   CONSOLE=$(oc --context="${CTX}" whoami --show-console 2>/dev/null || echo "?")
   USER=$(oc --context="${CTX}" whoami 2>/dev/null || echo "?")
@@ -136,8 +143,8 @@ for role in hub managed; do
 done
 
 echo "Use with:"
-echo "  oc --context=eaas-hub get nodes"
-echo "  oc --context=eaas-managed get nodes"
+echo "  oc --context=${HUB_CONTEXT} get nodes"
+echo "  oc --context=${MANAGED_CONTEXT} get nodes"
 echo ""
 echo "Cancel the PipelineRun when done:"
 echo "  oc patch pipelinerun ${PIPELINE_RUN} -n ${NAMESPACE} --type merge -p '{\"spec\":{\"status\":\"CancelledRunFinally\"}}'"
