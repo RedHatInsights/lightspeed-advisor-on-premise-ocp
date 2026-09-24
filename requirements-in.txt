@@ -1,29 +1,47 @@
+# Package management
+uv>=0.12.11
+pip>= 0.26.1
+setuptools>= 84.0.0
+wheel>=0.48.0
+
 # FastAPI and web framework
 fastapi>=0.109.0
+# Keep uvicorn[standard] so local/public-PyPI builds and the runtime image include
+# the same optional server dependencies resolved in the Lightwell lockfile.
 uvicorn[standard]>=0.27.0
 python-multipart>=0.0.6
 
 # Database
 sqlalchemy>=2.0.0
-psycopg2-binary>=2.9.9
+# psycopg2 is NOT installed from pip here: it ships as the python3.12-psycopg2
+# RPM (with libpq) — see rpms.in.yaml. SQLAlchemy's default driver for a plain
+# "postgresql://" URL (app/config.py) is psycopg2, so no code change is needed.
+# This avoids the compiled psycopg-binary wheel entirely.
 alembic>=1.13.0
 
 # Insights-core and CCX packages
 # ccx-rules-ocp is already installed in the base image, so it is not listed here.
 # insights-core>=3.2.26
 
-# Lock version as a workaround to PackageWithCorruptLockfileRejected: cachecontrol==0.14.4
-# pulls in uv-build as a build backend, whose sdist ships a Cargo.lock that doesn't match
-# its Cargo.toml, which Hermeto's `cargo vendor --locked` rejects (same fix as rules-containers).
-cachecontrol==0.14.3
+# Pinned because 0.14.4 is the only version the Lightwell validated index carries.
+# The earlier 0.14.3 pin worked around PackageWithCorruptLockfileRejected: the 0.14.4 sdist
+# pulls in uv-build as a build backend, whose Cargo.lock doesn't match its Cargo.toml, which
+# Hermeto's `cargo vendor --locked` rejects. That no longer applies — the index serves a
+# prebuilt cachecontrol-0.14.4-0-py3-none-any.whl and the "binary" prefetch filter in
+# .tekton/*.yaml takes the wheel, so the sdist is never built.
+cachecontrol==0.14.4
 
 # HTTP client
 httpx>=0.25.0
 
 # Configuration and utilities
 pydantic>=2.5.0
-pyyaml>=6.0.0
+# PyYAML, charset-normalizer, markupsafe and msgpack also ship in the base
+# image's /opt/venv. They are still pinned in requirements.txt when pulled in
+# transitively, so the lockfile constrains the expected runtime versions even
+# when the installer can reuse the base image copies.
 
-# Testing
-pytest>=7.4.0
-pytest-cov>=4.1.0
+# Testing dependencies deliberately live in requirements-test.txt, not here: the
+# Dockerfile copies only app/, migrations/ and config.yml, so tests/ never enters the
+# image and a test runner in it would be dead weight. pytest-cov is also absent from
+# the Lightwell validated index, which the hermetic lockfile resolves against.
