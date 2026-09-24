@@ -112,8 +112,8 @@ def extract_repo(image_dir: Path, out: Path) -> None:
             yum_repos_opaque, repo_whiteouted, layer_repo_contents = (
                 read_ubi_repo_from_layer(layer_path)
             )
-        except tarfile.TarError:
-            continue
+        except tarfile.TarError as exc:
+            sys.exit(f"Error: could not read image layer {digest}: {exc}")
 
         if yum_repos_opaque or repo_whiteouted:
             repo_contents = None
