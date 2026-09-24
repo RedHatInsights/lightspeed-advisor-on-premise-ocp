@@ -23,8 +23,9 @@ WORKDIR /app
 # --- RPM dependencies -------------------------------------------------------
 # Install the PostgreSQL driver as an RPM (python3.12-psycopg2, + libpq) rather
 # than the compiled psycopg-binary wheel. psycopg2 is SQLAlchemy's default driver
-# for the plain "postgresql://" URL. RPM modules are stored in /usr/lib*/python3.12/site-packages;
-# make them visible inside /opt/venv by enabling system site packages.
+# for the plain "postgresql://" URL. RPM modules are stored in
+# /usr/lib*/python3.12/site-packages; make them visible inside /opt/venv by
+# enabling system site packages.
 # hadolint ignore=DL3041
 RUN microdnf install --nodocs -y python3.12-psycopg2 && \
     microdnf clean all && \
@@ -36,73 +37,37 @@ RUN microdnf install --nodocs -y python3.12-psycopg2 && \
 # independently from application source changes.
 COPY requirements.txt .
 
-# --- Create non-hashed Python dependency list for local build ----------------
-# requirements.txt is Lightwell-resolved and hash-locked. Generate helper files
-# for the two install paths: hashed uv bootstrap for Hermeto, and exact pins
-# without Lightwell metadata for local public-PyPI builds. PyPI hashes are
-# different than the ones in Lightwell.
-RUN python - <<'PY'
-from pathlib import Path
-import re
-requirements = Path("requirements.txt").read_text().splitlines()
-# Keep the Lightwell index and the complete uv block, including hashes, so
-# Hermeto can bootstrap the pinned uv wheel from its prefetched artifacts.
-uv_bootstrap = [line for line in requirements if line.startswith("--index-url ")]
-emit_uv = False
-for line in requirements:
-    if line.startswith("uv=="):
-        emit_uv = True
-    if emit_uv:
-        uv_bootstrap.append(line)
-    if emit_uv and line.startswith("    # via"):
-        break
-# Keep exact package pins for local builds, but remove Lightwell-only metadata
-# that would make public PyPI installs fail.
-local_public_pypi = []
-for line in requirements:
-    stripped = line.strip()
-    if (
-        not stripped
-        or line.startswith("--index-url ")
-        or stripped.startswith("--hash=")
-        or stripped.startswith("#")
-    ):
-        continue
-    local_public_pypi.append(re.sub(r"\s*\\\s*$", "", line))
-Path("/tmp/uv-requirements.txt").write_text("\n".join(uv_bootstrap) + "\n")
-Path("/tmp/requirements-no-hashes.txt").write_text("\n".join(local_public_pypi) + "\n")
-PY
-
-# --- Install Python dependencies -----------------------------------------------
-# Konflux/Hermeto uses /cachi2 prefetched wheels and installs fully offline.
-# Local builds do not have /cachi2, so they install the same pinned versions
-# from public PyPI. uv is removed afterwards because it is only a build-time installer.
-RUN set -eu; \
+# --- Install uv dependency helper ------------------------------------------
+# Extract the pinned uv version and install just that wheel first so later
+# dependency installation can consistently use uv.
+RUN UV_VERSION="$(sed -n 's/^uv==\([^[:space:]\\]*\).*/\1/p' requirements.txt)" && \
     if [ -f /cachi2/cachi2.env ]; then \
         . /cachi2/cachi2.env; \
-        pip install --no-cache-dir --require-hashes --no-deps \
-            --no-index \
-            --find-links "${PIP_FIND_LINKS}" \
-            -r /tmp/uv-requirements.txt; \
-        uv pip install \
-            --python "${VIRTUAL_ENV}/bin/python" \
-            --offline \
-            --no-index \
-            --find-links "${PIP_FIND_LINKS}" \
-            --no-cache \
-            -r requirements.txt; \
-        uv pip check --python "${VIRTUAL_ENV}/bin/python"; \
+    fi && \
+    pip install --no-cache-dir --no-deps "uv==${UV_VERSION}"
+
+# --- Install Python dependencies -------------------------------------------
+# Konflux/Hermeto uses /cachi2 prefetched wheels and installs fully offline.
+# Local builds do not have /cachi2, so uv overrides the Lightwell index with
+# public PyPI and ignores Lightwell hashes. Build-only packaging tools are
+# removed afterwards to keep the runtime image lean.
+RUN if [ -f /cachi2/cachi2.env ]; then \
+        . /cachi2/cachi2.env && \
+        export UV_OFFLINE=1 && \
+        export UV_FIND_LINKS="${PIP_FIND_LINKS}" && \
+        UV_INDEX_ARGS="--no-index"; \
     else \
-        pip install --no-cache-dir \
-            --index-url https://pypi.org/simple \
-            -r /tmp/requirements-no-hashes.txt; \
-        pip check; \
-    fi; \
-    pip uninstall -y uv; \
-    find "${VIRTUAL_ENV}" -type d -name __pycache__ -prune -exec rm -rf '{}' +; \
-    rm -rf /root/.cache /tmp/*; \
-    mkdir -p /tmp/insights-uploads; \
-    chmod 777 /tmp/insights-uploads
+        export UV_DEFAULT_INDEX=https://pypi.org/simple && \
+        export UV_NO_VERIFY_HASHES=1 && \
+        UV_INDEX_ARGS=""; \
+    fi && \
+    uv pip install --python "${VIRTUAL_ENV}/bin/python" ${UV_INDEX_ARGS:+"${UV_INDEX_ARGS}"} --no-cache -r requirements.txt && \
+    # Verify installed packages have compatible dependencies
+    uv pip check --python "${VIRTUAL_ENV}/bin/python" && \
+    # Cleanup Python deps install
+    pip uninstall -y uv pip setuptools wheel packaging && \
+    find "${VIRTUAL_ENV}" -type d -name __pycache__ -prune -exec rm -rf '{}' + && \
+    rm -rf /root/.cache /tmp/*
 
 # --- Application runtime files ---------------------------------------------
 # Copy only the runtime inputs. Test files and local development artifacts are
@@ -111,9 +76,14 @@ COPY app ./app
 COPY migrations ./migrations
 COPY config.yml .
 
-# The rules content is owned by the inherited base image. Expose it at the path
-# expected by this application without copying the content into a second layer.
-RUN ln -sf /ccx-rules-ocp/content /app/content
+# --- Runtime filesystem setup ----------------------------------------------
+# The service stages uploaded archives under /tmp/insights-uploads. Keep that
+# directory writable for the non-root runtime user and OpenShift's arbitrary UID
+# model. The rules content is owned by the inherited base image, so expose it at
+# the expected application path without copying it into a second layer.
+RUN mkdir -p /tmp/insights-uploads && \
+    chmod 777 /tmp/insights-uploads && \
+    ln -sf /ccx-rules-ocp/content /app/content
 
 # HTTP and HTTPS ports used by the FastAPI/uvicorn service.
 EXPOSE 8000 8443
