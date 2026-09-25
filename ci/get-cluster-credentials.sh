@@ -6,60 +6,25 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${SCRIPT_DIR}/common.sh"
 
 usage() {
-  echo "Usage: $0 [pipelinerun-name]"
-  echo ""
-  echo "Reads the kubeconfigs produced by the provision-ephemeral-cluster tasks"
-  echo "and creates two oc contexts: ${HUB_CONTEXT} and ${MANAGED_CONTEXT}."
-  echo ""
-  echo "If no PipelineRun name is given, finds the latest one with the"
-  echo "debug.iop/hold-on-failure=true label."
-  echo ""
-  echo "Note: the ephemeral clusters are HyperShift hosted clusters. They have"
-  echo "no kubeadmin password and no web-console login - authentication is via"
-  echo "the client certificate embedded in the kubeconfig (user: system:admin)."
-  echo ""
-  echo "Requires: oc (logged into the Konflux cluster), base64"
+  cat <<EOF
+Usage: $0 [pipelinerun-name]
+
+Reads the kubeconfigs produced by the provision-ephemeral-cluster tasks
+and creates two oc contexts: ${HUB_CONTEXT} and ${MANAGED_CONTEXT}.
+
+If no PipelineRun name is given, finds the latest one with the
+debug.iop/hold-on-failure=true label.
+
+Note: the ephemeral clusters are HyperShift hosted clusters. They have
+no kubeadmin password and no web-console login - authentication is via
+the client certificate embedded in the kubeconfig (user: system:admin).
+
+Requires: oc (logged into the Konflux cluster), base64
+EOF
   exit 1
 }
 
 [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]] && usage
-
-find_pipelinerun() {
-  oc get pipelinerun -n "${NAMESPACE}" \
-    -l "test.appstudio.openshift.io/scenario=${ITS_NAME},debug.iop/hold-on-failure=true" \
-    --sort-by=.metadata.creationTimestamp \
-    -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true
-}
-
-PIPELINE_RUN="${1:-}"
-
-if [[ -z "${PIPELINE_RUN}" ]]; then
-  echo "Looking for latest debug PipelineRun..."
-  PIPELINE_RUN=$(find_pipelinerun)
-  if [[ -z "${PIPELINE_RUN}" ]]; then
-    echo "ERROR: No PipelineRun found with debug.iop/hold-on-failure=true"
-    echo "Either pass the PipelineRun name as argument or trigger with:"
-    echo "  ci/trigger-e2e.sh --debug"
-    exit 1
-  fi
-fi
-
-echo "PipelineRun: ${PIPELINE_RUN}"
-
-# Look up the credential secret produced by a provision-ephemeral-cluster
-# taskrun. The task exposes a "secretRef" result naming a secret that holds a
-# "kubeconfig" key.
-secret_for_role() {
-  local role="$1"
-  oc get taskrun -n "${NAMESPACE}" \
-    -l "tekton.dev/pipelineRun=${PIPELINE_RUN}" -o json | \
-    jq -r ".items[]
-      | select(.metadata.name | test(\"provision-${role}\"))
-      | .status.results[]? | select(.name == \"secretRef\") | .value" \
-    | head -1
-}
-
-ORIGINAL_CTX=$(oc config current-context 2>/dev/null || true)
 
 # role -> oc context name
 declare -A ROLE_CONTEXT=(
@@ -67,79 +32,121 @@ declare -A ROLE_CONTEXT=(
   [managed]="${MANAGED_CONTEXT}"
 )
 
-for role in hub managed; do
-  CTX="${ROLE_CONTEXT[$role]}"
-  SECRET=$(secret_for_role "${role}")
+KUBECONFIG_TMP=$(mktemp)
+# shellcheck disable=SC2064
+trap "rm -f '${KUBECONFIG_TMP}'" EXIT
 
-  if [[ -z "${SECRET}" ]]; then
+# --- Konflux queries -------------------------------------------------------
+
+latest_held_pipelinerun() {
+  oc get pipelinerun -n "${NAMESPACE}" \
+    -l "test.appstudio.openshift.io/scenario=${ITS_NAME},debug.iop/hold-on-failure=true" \
+    --sort-by=.metadata.creationTimestamp \
+    -o jsonpath='{.items[-1:].metadata.name}' 2>/dev/null || true
+}
+
+# The provision-<role> taskrun exposes a "secretRef" result naming a secret that
+# holds the cluster's kubeconfig. Print that secret name.
+provision_secret_for_role() {
+  oc get taskrun -n "${NAMESPACE}" -l "tekton.dev/pipelineRun=${PIPELINE_RUN}" -o json \
+    | jq -r --arg role "$1" \
+        '.items[]
+         | select(.metadata.name | test("provision-" + $role))
+         | .status.results[]? | select(.name == "secretRef") | .value' \
+    | head -1
+}
+
+# Decode the kubeconfig stored in a secret into $KUBECONFIG_TMP.
+fetch_kubeconfig() {
+  oc get secret -n "${NAMESPACE}" "$1" -o jsonpath='{.data.kubeconfig}' \
+    | base64 -d > "${KUBECONFIG_TMP}"
+  [[ -s "${KUBECONFIG_TMP}" ]]
+}
+
+# Build an oc context named $1 from the kubeconfig in $KUBECONFIG_TMP. We copy
+# the cluster + client-cert credentials under unique names because both provision
+# kubeconfigs use the same internal names (cluster/admin) and would collide on
+# merge. HyperShift clusters have no password, so this is cert auth only.
+create_context() {
+  local ctx="$1" server cadata cert key
+  server=$(KUBECONFIG="${KUBECONFIG_TMP}" oc config view --raw -o jsonpath='{.clusters[0].cluster.server}')
+  cadata=$(KUBECONFIG="${KUBECONFIG_TMP}" oc config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+  cert=$(KUBECONFIG="${KUBECONFIG_TMP}" oc config view --raw -o jsonpath='{.users[0].user.client-certificate-data}')
+  key=$(KUBECONFIG="${KUBECONFIG_TMP}" oc config view --raw -o jsonpath='{.users[0].user.client-key-data}')
+
+  oc config delete-context "${ctx}" 2>/dev/null || true
+  oc config delete-cluster "${ctx}" 2>/dev/null || true
+  oc config delete-user "${ctx}-admin" 2>/dev/null || true
+
+  oc config set-cluster "${ctx}" --server="${server}" >/dev/null
+  if [[ -n "${cadata}" ]]; then
+    oc config set "clusters.${ctx}.certificate-authority-data" "${cadata}" >/dev/null
+  else
+    oc config set "clusters.${ctx}.insecure-skip-tls-verify" true >/dev/null
+  fi
+  oc config set-credentials "${ctx}-admin" >/dev/null
+  oc config set "users.${ctx}-admin.client-certificate-data" "${cert}" >/dev/null
+  oc config set "users.${ctx}-admin.client-key-data" "${key}" >/dev/null
+  oc config set-context "${ctx}" --cluster="${ctx}" --user="${ctx}-admin" >/dev/null
+
+  echo "${server}"
+}
+
+print_cluster_summary() {
+  local role="$1" ctx="$2"
+  echo "=== ${role^^} CLUSTER ==="
+  echo "  Context: ${ctx}"
+  echo "  API:     $(oc --context="${ctx}" whoami --show-server 2>/dev/null || echo '?')"
+  echo "  Console: $(oc --context="${ctx}" whoami --show-console 2>/dev/null || echo '?')"
+  echo "  User:    $(oc --context="${ctx}" whoami 2>/dev/null || echo '?') (client-cert auth; no password / no web-console login)"
+  echo ""
+}
+
+# --- Resolve the PipelineRun -----------------------------------------------
+
+PIPELINE_RUN="${1:-}"
+if [[ -z "${PIPELINE_RUN}" ]]; then
+  echo "Looking for latest debug PipelineRun..."
+  PIPELINE_RUN=$(latest_held_pipelinerun)
+  if [[ -z "${PIPELINE_RUN}" ]]; then
+    echo "ERROR: No PipelineRun found with debug.iop/hold-on-failure=true"
+    echo "Either pass the PipelineRun name as argument or trigger with:"
+    echo "  ci/trigger-e2e.sh --debug"
+    exit 1
+  fi
+fi
+echo "PipelineRun: ${PIPELINE_RUN}"
+
+# --- Build one oc context per cluster --------------------------------------
+
+ORIGINAL_CTX=$(oc config current-context 2>/dev/null || true)
+
+for role in hub managed; do
+  ctx="${ROLE_CONTEXT[$role]}"
+  secret=$(provision_secret_for_role "${role}")
+
+  if [[ -z "${secret}" ]]; then
     echo "ERROR: could not find provision-${role} secretRef for ${PIPELINE_RUN}."
     echo "The provision-${role} task may not have completed. Check with:"
     echo "  oc get taskrun -n ${NAMESPACE} -l tekton.dev/pipelineRun=${PIPELINE_RUN}"
     exit 1
   fi
 
-  KCFG=$(mktemp)
-  # shellcheck disable=SC2064
-  trap "rm -f '${KCFG}'" EXIT
-  oc get secret -n "${NAMESPACE}" "${SECRET}" \
-    -o jsonpath='{.data.kubeconfig}' | base64 -d > "${KCFG}"
-
-  if [[ ! -s "${KCFG}" ]]; then
-    echo "ERROR: secret ${SECRET} has no kubeconfig data."
+  if ! fetch_kubeconfig "${secret}"; then
+    echo "ERROR: secret ${secret} has no kubeconfig data."
     exit 1
   fi
 
-  # Pull cluster + client-cert credentials out of the provisioned kubeconfig.
-  # We copy them under unique names because both provision kubeconfigs use the
-  # same internal names (cluster/admin) and would otherwise collide on merge.
-  SERVER=$(KUBECONFIG="${KCFG}" oc config view --raw \
-    -o jsonpath='{.clusters[0].cluster.server}')
-  CADATA=$(KUBECONFIG="${KCFG}" oc config view --raw \
-    -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
-  CERT=$(KUBECONFIG="${KCFG}" oc config view --raw \
-    -o jsonpath='{.users[0].user.client-certificate-data}')
-  KEY=$(KUBECONFIG="${KCFG}" oc config view --raw \
-    -o jsonpath='{.users[0].user.client-key-data}')
-
-  # Clean up any previous entries for this context.
-  oc config delete-context "${CTX}" 2>/dev/null || true
-  oc config delete-cluster "${CTX}" 2>/dev/null || true
-  oc config delete-user "${CTX}-admin" 2>/dev/null || true
-
-  oc config set-cluster "${CTX}" --server="${SERVER}" >/dev/null
-  if [[ -n "${CADATA}" ]]; then
-    oc config set "clusters.${CTX}.certificate-authority-data" "${CADATA}" >/dev/null
-  else
-    oc config set "clusters.${CTX}.insecure-skip-tls-verify" true >/dev/null
-  fi
-  oc config set-credentials "${CTX}-admin" >/dev/null
-  oc config set "users.${CTX}-admin.client-certificate-data" "${CERT}" >/dev/null
-  oc config set "users.${CTX}-admin.client-key-data" "${KEY}" >/dev/null
-  oc config set-context "${CTX}" --cluster="${CTX}" --user="${CTX}-admin" >/dev/null
-
-  rm -f "${KCFG}"
-  trap - EXIT
-
-  echo "  Created context ${CTX} -> ${SERVER}"
+  server=$(create_context "${ctx}")
+  echo "  Created context ${ctx} -> ${server}"
 done
 
 # Restore whatever context was active before.
-if [[ -n "${ORIGINAL_CTX}" ]]; then
-  oc config use-context "${ORIGINAL_CTX}" >/dev/null
-fi
+[[ -n "${ORIGINAL_CTX}" ]] && oc config use-context "${ORIGINAL_CTX}" >/dev/null
 
 echo ""
 for role in hub managed; do
-  CTX="${ROLE_CONTEXT[$role]}"
-  API=$(oc --context="${CTX}" whoami --show-server 2>/dev/null || echo "?")
-  CONSOLE=$(oc --context="${CTX}" whoami --show-console 2>/dev/null || echo "?")
-  USER=$(oc --context="${CTX}" whoami 2>/dev/null || echo "?")
-  echo "=== ${role^^} CLUSTER ==="
-  echo "  Context: ${CTX}"
-  echo "  API:     ${API}"
-  echo "  Console: ${CONSOLE}"
-  echo "  User:    ${USER} (client-cert auth; no password / no web-console login)"
-  echo ""
+  print_cluster_summary "${role}" "${ROLE_CONTEXT[$role]}"
 done
 
 echo "Use with:"
