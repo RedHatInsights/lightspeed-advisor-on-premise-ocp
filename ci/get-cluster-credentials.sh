@@ -94,10 +94,11 @@ create_context() {
 
 print_cluster_summary() {
   local role="$1" ctx="$2"
+  # No Console line on purpose: HyperShift hosted clusters have no identity
+  # provider, so the web console cannot be logged into. Auth is client-cert only.
   echo "=== ${role^^} CLUSTER ==="
   echo "  Context: ${ctx}"
   echo "  API:     $(oc --context="${ctx}" whoami --show-server 2>/dev/null || echo '?')"
-  echo "  Console: $(oc --context="${ctx}" whoami --show-console 2>/dev/null || echo '?')"
   echo "  User:    $(oc --context="${ctx}" whoami 2>/dev/null || echo '?') (client-cert auth; no password / no web-console login)"
   echo ""
 }
