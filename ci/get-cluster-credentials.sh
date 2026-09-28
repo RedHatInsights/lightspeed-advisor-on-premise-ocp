@@ -15,6 +15,10 @@ and creates two oc contexts: ${HUB_CONTEXT} and ${MANAGED_CONTEXT}.
 If no PipelineRun name is given, finds the latest one with the
 debug.iop/hold-on-failure=true label.
 
+WARNING: overwrites any existing kubeconfig contexts named
+${HUB_CONTEXT} / ${MANAGED_CONTEXT} (and their backing cluster/user
+entries). Your current context is preserved and restored afterwards.
+
 Note: the ephemeral clusters are HyperShift hosted clusters. They have
 no kubeadmin password and no web-console login - authentication is via
 the client certificate embedded in the kubeconfig (user: system:admin).

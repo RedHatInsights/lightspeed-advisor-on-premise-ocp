@@ -129,6 +129,10 @@ oc --context=iop-e2e-hub get nodes
 oc --context=iop-e2e-managed get nodes
 ```
 
+> **Overwrites existing entries:** any kubeconfig contexts named
+> `iop-e2e-hub` / `iop-e2e-managed` (and their backing cluster/user entries)
+> are deleted and recreated. Your active context is preserved and restored.
+
 > The ephemeral clusters are HyperShift hosted clusters: **no kubeadmin password
 > and no web-console login**. Authentication is via the client certificate
 > embedded in the kubeconfig (user `system:admin`), which is why these contexts
