@@ -256,24 +256,6 @@ spec:
               #!/usr/bin/env bash
               set -euo pipefail
 
-              # wait_for <timeout_s> <description> <command...>
-              # Polls <command> every 10s until it exits 0 or the timeout elapses.
-              # Returns 1 on timeout so the caller can dump diagnostics and exit.
-              wait_for() {
-                local timeout=$1 desc=$2; shift 2
-                local elapsed=0
-                echo "Waiting for ${desc} (timeout: ${timeout}s)..."
-                until "$@" &>/dev/null; do
-                  if (( elapsed >= timeout )); then
-                    echo "ERROR: timed out after ${timeout}s waiting for ${desc}"
-                    return 1
-                  fi
-                  sleep 10
-                  elapsed=$((elapsed + 10))
-                done
-                echo "  ${desc}: ready"
-              }
-
               echo "=== Import managed cluster ==="
 
               oc create namespace managed --dry-run=client -o yaml | oc apply -f -
@@ -304,27 +286,6 @@ spec:
                 oc --kubeconfig="${MANAGED_KUBECONFIG}" get pods -n open-cluster-management-agent -o wide || true
                 exit 1
               }
-
-              # Addon delivery is best-effort: warn and continue on timeout rather
-              # than failing the import. wait_for polls for the CR to appear; oc
-              # wait is used directly for the condition-based wait below.
-              addon_exists() {
-                oc get managedclusteraddon insights-operator-proxy -n managed &>/dev/null
-              }
-              if wait_for 300 "insights-operator-proxy addon to appear" addon_exists; then
-                echo "Addon CR exists. Waiting for Available condition..."
-                oc wait managedclusteraddon insights-operator-proxy -n managed \
-                  --for=condition=Available=True --timeout=300s || {
-                  echo "WARNING: Addon not Available yet — continuing"
-                  oc get managedclusteraddon insights-operator-proxy -n managed -o yaml || true
-                }
-              else
-                echo "WARNING: insights-operator-proxy addon not deployed — continuing"
-                echo "--- ClusterManagementAddOn ---"
-                oc get clustermanagementaddon insights-operator-proxy -o yaml 2>/dev/null || true
-                echo "--- ManagedClusterAddOns in managed ---"
-                oc get managedclusteraddon -n managed 2>/dev/null || true
-              fi
 
               echo "=== Managed cluster import complete ==="
 
@@ -551,6 +512,22 @@ spec:
                 fi
               }
 
+              # The insights-operator-proxy addon (the custom IOP HAProxy proxy) is
+              # registered by iop-deploy and propagated to the managed cluster by
+              # ACM after import. Its ManagedClusterAddOn CR lives in the hub's
+              # "managed" namespace. oc wait errors if the CR does not exist yet, so
+              # poll for it to appear before waiting on its Available condition.
+              addon_available() {
+                local elapsed=0
+                until oc get managedclusteraddon insights-operator-proxy -n managed &>/dev/null; do
+                  (( elapsed >= 300 )) && return 1
+                  sleep 10
+                  elapsed=$((elapsed + 10))
+                done
+                oc wait managedclusteraddon insights-operator-proxy -n managed \
+                  --for=condition=Available=True --timeout=300s
+              }
+
               echo "--- Hub cluster checks ---"
               check "IOP deployment is Available" \
                 oc rollout status deployment/insights-on-prem -n insights-on-prem --timeout=10s
@@ -576,6 +553,8 @@ spec:
               check "Klusterlet agent is running on managed" \
                 oc --kubeconfig="${MANAGED_KUBECONFIG}" get pods -n open-cluster-management-agent \
                   --field-selector=status.phase=Running
+              check "insights-operator-proxy addon is Available on managed" \
+                addon_available
 
               # TODO: Add actual e2e API tests:
               # - Health check via IOP pod exec (mTLS prevents external curl)
@@ -596,6 +575,10 @@ spec:
                 oc describe deployment insights-on-prem -n insights-on-prem | tail -20
                 echo "--- Managed cluster status ---"
                 oc get managedcluster managed -o yaml 2>/dev/null || true
+                echo "--- insights-operator-proxy addon ---"
+                oc get clustermanagementaddon insights-operator-proxy -o yaml 2>/dev/null || true
+                oc get managedclusteraddon -n managed 2>/dev/null || true
+                oc get managedclusteraddon insights-operator-proxy -n managed -o yaml 2>/dev/null || true
                 exit 1
               fi
 
