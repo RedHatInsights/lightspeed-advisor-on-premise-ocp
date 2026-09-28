@@ -528,6 +528,13 @@ spec:
                   --for=condition=Available=True --timeout=300s
               }
 
+              # oc get exits 0 even with no matching pods, so pipe through grep to
+              # make an empty result fail the check.
+              klusterlet_running() {
+                oc --kubeconfig="${MANAGED_KUBECONFIG}" get pods -n open-cluster-management-agent \
+                  --field-selector=status.phase=Running --no-headers 2>/dev/null | grep -q .
+              }
+
               echo "--- Hub cluster checks ---"
               check "IOP deployment is Available" \
                 oc rollout status deployment/insights-on-prem -n insights-on-prem --timeout=10s
@@ -547,12 +554,11 @@ spec:
                 test "$(oc get multiclusterhub multiclusterhub -n open-cluster-management \
                   -o jsonpath='{.status.phase}')" = "Running"
               check "Managed cluster is Available" \
-                oc get managedcluster managed
+                oc wait managedcluster managed \
+                  --for=condition=ManagedClusterConditionAvailable=True --timeout=10s
 
               echo "--- Managed cluster checks ---"
-              check "Klusterlet agent is running on managed" \
-                oc --kubeconfig="${MANAGED_KUBECONFIG}" get pods -n open-cluster-management-agent \
-                  --field-selector=status.phase=Running
+              check "Klusterlet agent is running on managed" klusterlet_running
               check "insights-operator-proxy addon is Available on managed" \
                 addon_available
 
