@@ -112,7 +112,7 @@ spec:
               - name: hub-credentials
                 mountPath: /var/run/secrets/hub-cluster
                 readOnly: true
-            image: registry.redhat.io/openshift4/ose-cli:latest
+            image: registry.redhat.io/openshift4/ose-cli-rhel9:v4.21
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -251,7 +251,7 @@ spec:
               - name: managed-credentials
                 mountPath: /var/run/secrets/managed-cluster
                 readOnly: true
-            image: registry.redhat.io/openshift4/ose-cli:latest
+            image: registry.redhat.io/openshift4/ose-cli-rhel9:v4.21
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -324,7 +324,7 @@ spec:
               - name: iop-pull-secret
                 mountPath: /var/run/secrets/iop-pull-secret
                 readOnly: true
-            image: registry.redhat.io/openshift4/ose-cli:latest
+            image: registry.redhat.io/openshift4/ose-cli-rhel9:v4.21
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -456,7 +456,7 @@ spec:
             volumeMounts:
               - name: shared-data
                 mountPath: /shared
-            image: registry.redhat.io/openshift4/ose-cli:latest
+            image: registry.redhat.io/openshift4/ose-cli-rhel9:v4.21
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -485,7 +485,7 @@ spec:
               - name: managed-credentials
                 mountPath: /var/run/secrets/managed-cluster
                 readOnly: true
-            image: registry.redhat.io/openshift4/ose-cli:latest
+            image: registry.redhat.io/openshift4/ose-cli-rhel9:v4.21
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -647,7 +647,7 @@ spec:
             volumeMounts:
               - name: shared-data
                 mountPath: /shared
-            image: registry.redhat.io/openshift4/ose-cli:latest
+            image: registry.redhat.io/openshift4/ose-cli-rhel9:v4.21
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
@@ -673,7 +673,7 @@ spec:
               - name: managed-credentials
                 mountPath: /var/run/secrets/managed-cluster
                 readOnly: true
-            image: registry.redhat.io/openshift4/ose-cli:latest
+            image: registry.redhat.io/openshift4/ose-cli-rhel9:v4.21
             script: |
               #!/usr/bin/env bash
               set -euo pipefail
