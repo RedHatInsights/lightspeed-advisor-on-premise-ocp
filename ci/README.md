@@ -49,13 +49,6 @@ The pipeline definition itself is resolved from **branch HEAD** of the branch th
 ITS `resolverRef` points at, so triggering any existing Snapshot always runs the
 latest pipeline code on that branch.
 
-> **Naming note:** the ITS name is `insights-on-prem-e2e` — it does **not**
-> encode the provisioning mechanism. An earlier version used Konflux EaaS and was
-> named `...-eaas-e2e`; provisioning has since moved to OpenShift CI ephemeral
-> clusters, so the mechanism-specific name was dropped. The mechanism is
-> documented here and in the pipeline `description`, where it is cheap to update
-> if it changes again.
-
 ## Why PipelineRun labels instead of pipeline parameters
 
 Tekton pipeline parameters are **immutable after PipelineRun creation**, and the
@@ -75,54 +68,52 @@ minutes, so the labels are always in place before any task reads them.
 
 ## Usage
 
-All scripts require `oc` (logged into the Konflux cluster) and `jq`, and share
+Both scripts require `oc` (logged into the Konflux cluster) and `jq`, and share
 configuration from `ci/common.sh` (namespace, component, ITS name, context names).
+Run either script with `--help` for its full flag reference; this section explains
+what the scripts are for, not every flag.
 
-### Basic trigger
-
-```bash
-ci/trigger-e2e.sh              # trigger for current HEAD
-ci/trigger-e2e.sh abc1234      # trigger for a specific commit
-ci/trigger-e2e.sh --force      # retrigger (removes the run label first, re-adds)
-```
-
-### Debug: hold clusters on failure
+### Trigger and debug
 
 ```bash
-ci/trigger-e2e.sh --debug
+ci/trigger-e2e.sh            # trigger the e2e ITS for the current HEAD commit
+ci/trigger-e2e.sh --debug    # ...and hold the clusters if any task fails
 ```
 
-`--debug` labels the PipelineRun with `debug.iop/hold-on-failure=true`. If any
-task fails, the `hold-clusters-on-failure` finally task:
-
-1. Prints each cluster's credentials (API URL, `oc login` command, base64
-   kubeconfig) to the task logs, and
-2. Sleeps indefinitely to keep the PipelineRun — and therefore the ephemeral
-   clusters — alive for inspection.
-
-You can also add the label to a running PipelineRun any time before it fails:
+`--debug` labels the PipelineRun `debug.iop/hold-on-failure=true`. On failure, the
+`hold-clusters-on-failure` finally task prints each cluster's API server and
+base64 kubeconfig to the logs, then sleeps to keep the ephemeral clusters alive
+for inspection. You can add the same label to an already-running PipelineRun any
+time before it fails:
 
 ```bash
-oc label pipelinerun <name> -n obsint-processing-tenant \
-  debug.iop/hold-on-failure=true
+oc label pipelinerun <name> -n obsint-processing-tenant debug.iop/hold-on-failure=true
 ```
 
-When done debugging, cancel the run (this tears down the clusters):
+When you're done, cancel the run to tear down the clusters:
 
 ```bash
 oc patch pipelinerun <name> -n obsint-processing-tenant \
   --type merge -p '{"spec":{"status":"CancelledRunFinally"}}'
 ```
 
+`--test-filter <str>` labels the run but does not select tests yet — it is a
+placeholder for the future e2e suite, not a bug.
+
 ### Get cluster credentials from a held run
 
+This only works against a run that is **currently held open** by the debug flow
+above — i.e. one triggered with `ci/trigger-e2e.sh --debug` (or labeled
+`debug.iop/hold-on-failure=true`) where a task then failed. Without the hold, the
+ephemeral clusters are torn down as soon as the run finishes and there are no
+credentials to read.
+
 ```bash
-ci/get-cluster-credentials.sh                       # auto-find latest debug run
-ci/get-cluster-credentials.sh insights-on-prem-e2e-fxrpk   # or name a run
+ci/get-cluster-credentials.sh    # defaults to the latest held debug run
 ```
 
-This reads the kubeconfigs the provision tasks produced and creates two oc
-contexts (your original context is preserved):
+Creates `iop-e2e-hub` / `iop-e2e-managed` oc contexts from the held run's
+kubeconfigs:
 
 ```bash
 oc --context=iop-e2e-hub get nodes
@@ -138,47 +129,11 @@ oc --context=iop-e2e-managed get nodes
 > embedded in the kubeconfig (user `system:admin`), which is why these contexts
 > use cert auth rather than `oc login -u/-p`.
 
-### Test filter (placeholder)
+## ITS configuration
 
-```bash
-ci/trigger-e2e.sh --test-filter smoke
-```
-
-Labels the PipelineRun with `debug.iop/test-filter=smoke`; the test task reads it
-at runtime. The actual filtering logic is not implemented yet (TODO).
-
-### Combined
-
-```bash
-ci/trigger-e2e.sh --debug --test-filter smoke abc1234
-```
-
-## ITS configuration (in konflux-release-data)
-
-The ITS is defined in `konflux-release-data`, source of truth:
-
-```
-tenants-config/cluster/stone-prd-rh01/tenants/obsint-processing-tenant/insights-on-prem-component.yaml
-```
-
-after editing there, regenerate the `auto-generated/` copy with
-`tenants-config/build-single.sh obsint-processing-tenant` and commit both.
-
-Two things must stay correct:
-
-- **Name match:** the ITS `metadata.name` must equal the value the trigger script
-  sets (`insights-on-prem-e2e`, from `ci/common.sh`). If they differ, labeling a
-  Snapshot is silently ignored and nothing runs.
-- **Timeout annotations:** the debug hold needs extended timeouts so the finally
-  task can sleep; otherwise the default 1h PipelineRun timeout kills the held run:
-
-  ```yaml
-  metadata:
-    annotations:
-      test.appstudio.openshift.io/pipeline_timeout: "4h"
-      test.appstudio.openshift.io/tasks_timeout: "2h"
-      test.appstudio.openshift.io/finally_timeout: "2h"
-  ```
+The IntegrationTestScenario (name, timeouts, `resolverRef`) is defined in the
+`konflux-release-data` repo, not here:
+`tenants-config/cluster/stone-prd-rh01/tenants/obsint-processing-tenant/insights-on-prem-component.yaml`.
 
 ## Files
 
