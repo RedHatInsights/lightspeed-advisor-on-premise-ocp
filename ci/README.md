@@ -81,10 +81,10 @@ ci/trigger-e2e.sh --debug    # ...and hold the clusters if any task fails
 ```
 
 `--debug` labels the PipelineRun `debug.iop/hold-on-failure=true`. On failure, the
-`hold-clusters-on-failure` finally task prints each cluster's API server and
-base64 kubeconfig to the logs, then sleeps to keep the ephemeral clusters alive
-for inspection. You can add the same label to an already-running PipelineRun any
-time before it fails:
+`hold-clusters-on-failure` finally task prints each cluster's API server to the
+logs, then sleeps to keep the ephemeral clusters alive for inspection. Use
+`ci/get-cluster-credentials.sh` to get access. You can add the same label to an
+already-running PipelineRun any time before it fails:
 
 ```bash
 oc label pipelinerun <name> -n obsint-processing-tenant debug.iop/hold-on-failure=true

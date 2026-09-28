@@ -711,13 +711,9 @@ spec:
                 echo "=== ${CLUSTER_LABEL} CLUSTER ==="
                 echo "API Server: ${API_SERVER}"
                 echo ""
-                echo "Access (client-cert auth). Easiest, from an IOP checkout logged"
-                echo "into the Konflux cluster:"
+                echo "Access (client-cert auth), from an IOP checkout logged into"
+                echo "the Konflux cluster:"
                 echo "  ci/get-cluster-credentials.sh   # auto-finds this held run"
-                echo ""
-                echo "Or decode this kubeconfig and use it directly:"
-                base64 -w0 "${CRED_PATH}/kubeconfig"; echo
-                echo "  # base64 -d > kubeconfig; oc --kubeconfig=kubeconfig get nodes"
               done
 
               echo ""
