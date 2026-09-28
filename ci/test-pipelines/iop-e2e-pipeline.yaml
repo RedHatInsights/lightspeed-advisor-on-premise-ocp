@@ -699,19 +699,21 @@ spec:
                 fi
 
                 API_SERVER=$(KUBECONFIG="${CRED_PATH}/kubeconfig" oc config view --minify -o jsonpath='{.clusters[0].cluster.server}' 2>/dev/null || echo "unknown")
-                PASSWORD=$(cat "${CRED_PATH}/kubeAdminPassword" 2>/dev/null || echo "unknown")
 
+                # HyperShift hosted clusters have no kubeadmin password and no web
+                # console; the only credential is the client cert embedded in the
+                # kubeconfig below. Password-based `oc login` does not work here.
                 echo ""
                 echo "=== ${CLUSTER_LABEL} CLUSTER ==="
-                echo "API Server:  ${API_SERVER}"
-                echo "Username:    kubeadmin"
-                echo "Password:    ${PASSWORD}"
+                echo "API Server: ${API_SERVER}"
                 echo ""
-                echo "Login command:"
-                echo "  oc login ${API_SERVER} -u kubeadmin -p ${PASSWORD} --insecure-skip-tls-verify"
+                echo "Access (client-cert auth). Easiest, from an IOP checkout logged"
+                echo "into the Konflux cluster:"
+                echo "  ci/get-cluster-credentials.sh   # auto-finds this held run"
                 echo ""
-                echo "Kubeconfig (base64 — decode and save to a file):"
+                echo "Or decode this kubeconfig and use it directly:"
                 base64 -w0 "${CRED_PATH}/kubeconfig"; echo
+                echo "  # base64 -d > kubeconfig; oc --kubeconfig=kubeconfig get nodes"
               done
 
               echo ""
