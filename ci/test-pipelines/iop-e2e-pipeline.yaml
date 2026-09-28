@@ -256,6 +256,24 @@ spec:
               #!/usr/bin/env bash
               set -euo pipefail
 
+              # wait_for <timeout_s> <description> <command...>
+              # Polls <command> every 10s until it exits 0 or the timeout elapses.
+              # Returns 1 on timeout so the caller can dump diagnostics and exit.
+              wait_for() {
+                local timeout=$1 desc=$2; shift 2
+                local elapsed=0
+                echo "Waiting for ${desc} (timeout: ${timeout}s)..."
+                until "$@" &>/dev/null; do
+                  if (( elapsed >= timeout )); then
+                    echo "ERROR: timed out after ${timeout}s waiting for ${desc}"
+                    return 1
+                  fi
+                  sleep 10
+                  elapsed=$((elapsed + 10))
+                done
+                echo "  ${desc}: ready"
+              }
+
               echo "=== Import managed cluster ==="
 
               oc create namespace managed --dry-run=client -o yaml | oc apply -f -
@@ -287,28 +305,25 @@ spec:
                 exit 1
               }
 
-              echo "Waiting for addon deployment to spoke..."
-              ELAPSED=0
-              until oc get managedclusteraddon insights-operator-proxy -n managed &>/dev/null; do
-                if [[ "$ELAPSED" -ge 300 ]]; then
-                  echo "WARNING: insights-operator-proxy addon not deployed after 5 minutes"
-                  echo "--- ClusterManagementAddOn ---"
-                  oc get clustermanagementaddon insights-operator-proxy -o yaml 2>/dev/null || true
-                  echo "--- ManagedClusterAddOns in managed ---"
-                  oc get managedclusteraddon -n managed 2>/dev/null || true
-                  break
-                fi
-                sleep 10
-                ELAPSED=$((ELAPSED + 10))
-              done
-
-              if oc get managedclusteraddon insights-operator-proxy -n managed &>/dev/null; then
+              # Addon delivery is best-effort: warn and continue on timeout rather
+              # than failing the import. wait_for polls for the CR to appear; oc
+              # wait is used directly for the condition-based wait below.
+              addon_exists() {
+                oc get managedclusteraddon insights-operator-proxy -n managed &>/dev/null
+              }
+              if wait_for 300 "insights-operator-proxy addon to appear" addon_exists; then
                 echo "Addon CR exists. Waiting for Available condition..."
                 oc wait managedclusteraddon insights-operator-proxy -n managed \
                   --for=condition=Available=True --timeout=300s || {
                   echo "WARNING: Addon not Available yet — continuing"
                   oc get managedclusteraddon insights-operator-proxy -n managed -o yaml || true
                 }
+              else
+                echo "WARNING: insights-operator-proxy addon not deployed — continuing"
+                echo "--- ClusterManagementAddOn ---"
+                oc get clustermanagementaddon insights-operator-proxy -o yaml 2>/dev/null || true
+                echo "--- ManagedClusterAddOns in managed ---"
+                oc get managedclusteraddon -n managed 2>/dev/null || true
               fi
 
               echo "=== Managed cluster import complete ==="
