@@ -15,7 +15,6 @@ IOP e2e test pipeline via the IntegrationTestScenario (${ITS_NAME}).
 If no commit is provided, uses HEAD of the current git repo.
 
 Options:
-  -f, --force            Retrigger (removes label first, then re-adds)
   -d, --debug            Hold clusters on failure. Labels the PipelineRun
                          with debug.iop/hold-on-failure=true so the finally
                          task dumps credentials and sleeps on failure.
@@ -44,11 +43,19 @@ image_for_snapshot() {
         '.spec.components[] | select(.name == $comp) | .containerImage'
 }
 
-# Wait until the integration service creates the PipelineRun for this Snapshot,
-# then print its name. Provisioning takes 10+ min, so labeling the run here is
-# always in place before any task reads its labels.
+# List the PipelineRuns the integration service has created for this Snapshot.
+pipelineruns_for_snapshot() {
+  oc get pipelinerun -n "${NAMESPACE}" \
+    -l "appstudio.openshift.io/snapshot=$1,test.appstudio.openshift.io/scenario=${ITS_NAME}" \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null || true
+}
+
+# Wait until the integration service creates a *new* PipelineRun for this Snapshot
+# (one not in ${existing}), then print its name. Re-triggering a Snapshot leaves
+# its previous runs around, so we skip them and label the new one. Provisioning
+# takes 10+ min, so the labels are always in place before any task reads them.
 wait_for_pipelinerun() {
-  local snapshot="$1" elapsed=0 plr=""
+  local snapshot="$1" existing="$2" elapsed=0 plr=""
   while [[ -z "${plr}" ]]; do
     if (( elapsed >= 120 )); then
       echo "ERROR: PipelineRun not created after 2 minutes" >&2
@@ -56,22 +63,19 @@ wait_for_pipelinerun() {
     fi
     sleep 5
     elapsed=$((elapsed + 5))
-    plr=$(oc get pipelinerun -n "${NAMESPACE}" \
-      -l "appstudio.openshift.io/snapshot=${snapshot},test.appstudio.openshift.io/scenario=${ITS_NAME}" \
-      -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
+    plr=$(pipelineruns_for_snapshot "${snapshot}" \
+      | grep -vxF -f <(printf '%s\n' "${existing}") | head -1 || true)
   done
   echo "${plr}"
 }
 
 # --- Parse arguments -------------------------------------------------------
 
-FORCE=false
 DEBUG=false
 TEST_FILTER=""
 
 while [[ "${1:-}" == -* ]]; do
   case "$1" in
-    -f|--force) FORCE=true; shift ;;
     -d|--debug) DEBUG=true; shift ;;
     -t|--test-filter) TEST_FILTER="${2:?--test-filter requires a value}"; shift 2 ;;
     -h|--help) usage ;;
@@ -100,13 +104,17 @@ echo ""
 
 # --- Trigger by labeling the Snapshot --------------------------------------
 
+# Record the runs that already exist for this Snapshot so we can identify the new
+# one afterwards (previous runs persist across re-triggers).
+EXISTING_PLRS=$(pipelineruns_for_snapshot "${SNAPSHOT_NAME}")
+
 echo "Labeling Snapshot to trigger ${ITS_NAME}..."
 
-if [[ "${FORCE}" == "true" ]]; then
-  oc label "snapshot/${SNAPSHOT_NAME}" "test.appstudio.openshift.io/run-" \
-    -n "${NAMESPACE}" 2>/dev/null || true
-fi
-
+# The integration service consumes (removes) the run label after creating the
+# PipelineRun, so re-adding it re-triggers. Remove it first in case a very recent
+# trigger left it set — a plain re-add would fail with "already has a value".
+oc label "snapshot/${SNAPSHOT_NAME}" "test.appstudio.openshift.io/run-" \
+  -n "${NAMESPACE}" 2>/dev/null || true
 oc label "snapshot/${SNAPSHOT_NAME}" "test.appstudio.openshift.io/run=${ITS_NAME}" \
   -n "${NAMESPACE}"
 
@@ -120,7 +128,7 @@ fi
 
 echo ""
 echo "Waiting for PipelineRun to be created..."
-PIPELINE_RUN=$(wait_for_pipelinerun "${SNAPSHOT_NAME}")
+PIPELINE_RUN=$(wait_for_pipelinerun "${SNAPSHOT_NAME}" "${EXISTING_PLRS}")
 echo "PipelineRun: ${PIPELINE_RUN}"
 
 if [[ "${DEBUG}" == "true" ]]; then
