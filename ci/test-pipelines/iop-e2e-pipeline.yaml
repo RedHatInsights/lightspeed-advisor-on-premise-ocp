@@ -289,6 +289,44 @@ spec:
 
               echo "=== Managed cluster import complete ==="
 
+              # Enable the ACM governance policy framework on the managed cluster.
+              # These ClusterManagementAddOns ship with installStrategy: Manual, so
+              # without explicit ManagedClusterAddOns the spoke never gets
+              # config-policy-controller / governance-policy-framework. The
+              # insights-on-prem-proxy Policy (created later by iop-deploy) would then
+              # never be enforced on the spoke — leaving the proxy namespace, config,
+              # Service and TLS uncreated and the addon permanently unavailable.
+              echo "=== Enable policy addons on managed cluster ==="
+              cat <<'ADDONS' | oc apply -f -
+              apiVersion: addon.open-cluster-management.io/v1alpha1
+              kind: ManagedClusterAddOn
+              metadata:
+                name: config-policy-controller
+                namespace: managed
+              spec:
+                installNamespace: open-cluster-management-agent-addon
+              ---
+              apiVersion: addon.open-cluster-management.io/v1alpha1
+              kind: ManagedClusterAddOn
+              metadata:
+                name: governance-policy-framework
+                namespace: managed
+              spec:
+                installNamespace: open-cluster-management-agent-addon
+              ADDONS
+
+              echo "Waiting for policy addons to be Available on managed..."
+              for addon in config-policy-controller governance-policy-framework; do
+                oc wait managedclusteraddon "${addon}" -n managed \
+                  --for=condition=Available=True --timeout=300s || {
+                  echo "ERROR: policy addon ${addon} not Available"
+                  oc get managedclusteraddon "${addon}" -n managed -o yaml || true
+                  exit 1
+                }
+              done
+
+              echo "=== Policy addons enabled ==="
+
     # ── Deploy IOP on hub ────────────────────────────────────────────────
     - name: iop-deploy
       runAfter:
@@ -512,19 +550,19 @@ spec:
                 fi
               }
 
-              # The insights-operator-proxy addon (the custom IOP HAProxy proxy) is
+              # The insights-on-prem-proxy addon (the custom IOP HAProxy proxy) is
               # registered by iop-deploy and propagated to the managed cluster by
               # ACM after import. Its ManagedClusterAddOn CR lives in the hub's
               # "managed" namespace. oc wait errors if the CR does not exist yet, so
               # poll for it to appear before waiting on its Available condition.
               addon_available() {
                 local elapsed=0
-                until oc get managedclusteraddon insights-operator-proxy -n managed &>/dev/null; do
+                until oc get managedclusteraddon insights-on-prem-proxy -n managed &>/dev/null; do
                   (( elapsed >= 300 )) && return 1
                   sleep 10
                   elapsed=$((elapsed + 10))
                 done
-                oc wait managedclusteraddon insights-operator-proxy -n managed \
+                oc wait managedclusteraddon insights-on-prem-proxy -n managed \
                   --for=condition=Available=True --timeout=300s
               }
 
@@ -559,7 +597,7 @@ spec:
 
               echo "--- Managed cluster checks ---"
               check "Klusterlet agent is running on managed" klusterlet_running
-              check "insights-operator-proxy addon is Available on managed" \
+              check "insights-on-prem-proxy addon is Available on managed" \
                 addon_available
 
               # TODO: Add actual e2e API tests:
@@ -581,10 +619,10 @@ spec:
                 oc describe deployment insights-on-prem -n insights-on-prem | tail -20
                 echo "--- Managed cluster status ---"
                 oc get managedcluster managed -o yaml 2>/dev/null || true
-                echo "--- insights-operator-proxy addon ---"
-                oc get clustermanagementaddon insights-operator-proxy -o yaml 2>/dev/null || true
+                echo "--- insights-on-prem-proxy addon ---"
+                oc get clustermanagementaddon insights-on-prem-proxy -o yaml 2>/dev/null || true
                 oc get managedclusteraddon -n managed 2>/dev/null || true
-                oc get managedclusteraddon insights-operator-proxy -n managed -o yaml 2>/dev/null || true
+                oc get managedclusteraddon insights-on-prem-proxy -n managed -o yaml 2>/dev/null || true
                 exit 1
               fi
 
