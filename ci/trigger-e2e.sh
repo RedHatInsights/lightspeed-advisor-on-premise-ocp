@@ -150,6 +150,7 @@ if [[ "${DEBUG}" == "true" ]]; then
   echo "On failure, check logs for credentials:"
   echo "  oc logs -n ${NAMESPACE} ${PIPELINE_RUN}-hold-clusters-on-failure-pod print-credentials-and-wait"
   echo ""
-  echo "When done debugging, cancel with:"
-  echo "  oc patch pipelinerun ${PIPELINE_RUN} -n ${NAMESPACE} --type merge -p '{\"spec\":{\"status\":\"CancelledRunFinally\"}}'"
+  echo "When done debugging, cancel with (use Cancelled, not CancelledRunFinally,"
+  echo "so the hold in the finally task stops and the clusters are released):"
+  echo "  oc patch pipelinerun ${PIPELINE_RUN} -n ${NAMESPACE} --type merge -p '{\"spec\":{\"status\":\"Cancelled\"}}'"
 fi

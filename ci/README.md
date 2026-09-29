@@ -94,8 +94,14 @@ When you're done, cancel the run to tear down the clusters:
 
 ```bash
 oc patch pipelinerun <name> -n obsint-processing-tenant \
-  --type merge -p '{"spec":{"status":"CancelledRunFinally"}}'
+  --type merge -p '{"spec":{"status":"Cancelled"}}'
 ```
+
+Use `Cancelled`, not `CancelledRunFinally`, for a held run. The hold logic lives
+in the `hold-clusters-on-failure` **finally** task, and `CancelledRunFinally`
+lets `finally` tasks run to completion — so it leaves the hold (and the clusters)
+alive until its timeout. `Cancelled` stops the finally task too and releases the
+clusters immediately.
 
 `--test-filter <str>` labels the run but does not select tests yet — it is a
 placeholder for the future e2e suite, not a bug.
