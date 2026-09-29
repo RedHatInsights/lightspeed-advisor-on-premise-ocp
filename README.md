@@ -49,10 +49,21 @@ Insights on Premise aims to provide recommendations based on Insights archives i
 
 Before going forward with deployment steps, check that:
 
-- The hub is running on ACM 2.17.1+ and all clusters in the fleet are running OpenShift version >= 4.20.
+- The hub is running on ACM 2.17.1+.
+- All clusters targeted by the addon, including the self-managed hub, run one of the supported OpenShift versions listed below.
 - MultiClusterHub is created in `open-cluster-management` namespace (it can take several minutes before all components are started).
 - Hub cluster self-management is enabled (default ACM behavior). The hub must be imported into ACM as a managed cluster (with the `local-cluster: "true"` label) so that Policies can target it for certificate management.
 - (optional) Multicluster Observability Operator is deployed according to [these instructions](https://github.com/stolostron/multicluster-observability-operator/tree/main?tab=readme-ov-file#run-the-operator-in-the-cluster). **This step is required for enabling update risk predictions.**
+
+Supported OpenShift versions:
+
+| OpenShift line | Minimum version |
+| --- | --- |
+| 4.20 | 4.20.41 (unreleased as of September 29, 2026) |
+| 4.21 | 4.21.35 |
+| 4.22 | 4.22.15 |
+| 4.23 (preview testing) | 4.23.0-ec.1 |
+| 5.0 (preview testing) | 5.0.0-rc.2 |
 
 ### Deployment steps
 
@@ -287,10 +298,6 @@ For **upgrade risk predictions**, the ACM and MCE consoles query Insights on Pre
 
 HAProxy is deployed as an ACM managed cluster addon on every managed cluster, including the hub itself (which is self-managed). On the hub, HAProxy also serves as the local endpoint for the ACM console and Insights Client.
 
-> **Note:** The current deployment includes temporary workarounds that deviate from the diagram above:
->
-> - A cluster-wide Proxy patch distributes the service CA to the Insights Operator until it natively supports a CA certificate field in its ConfigMap (to be removed by [#204](https://github.com/RedHatInsights/lightspeed-advisor-on-premise-ocp/pull/204)).
-
 ### Security
 
 #### Certificate Management
@@ -316,7 +323,7 @@ Two NetworkPolicies restrict ingress to the HAProxy proxy pod (`app: insights-on
 | Policy | Deployed to | Allowed callers |
 | --- | --- | --- |
 | `insights-on-prem-proxy` (`13-spoke-policy.yml`) | All managed clusters (including hub) | All pods from `openshift-insights` (Insights Operator and its periodic gathering jobs) |
-| `insights-on-prem-hub-config` (`14-hub-config.yml`) | Hub only | Insights Client and ACM console from `open-cluster-management`, plus MCE console from `multicluster-engine` |
+| `insights-on-prem-proxy-hub` (`14-hub-config.yml`) | Hub only | Insights Client and ACM console from `open-cluster-management`, plus MCE console from `multicluster-engine` |
 
 On managed clusters only the first policy applies, so only the Insights Operator can reach HAProxy. On the hub both policies apply and Kubernetes unions their ingress rules, additionally allowing the Insights Client, ACM console, and MCE console.
 
