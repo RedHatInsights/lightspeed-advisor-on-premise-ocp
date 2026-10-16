@@ -1,6 +1,6 @@
 # The image is layered on top of the OCP rules. The image already
 # contains the rule content, Python runtime, and /opt/venv used by the service.
-FROM registry.redhat.io/lightspeed-services-ocp/ocp-rules-rhel9:2026.09.22
+FROM registry.redhat.io/lightspeed-services-ocp/ocp-rules-rhel9:2026.10.14
 
 # Switch to root only for image assembly: installing RPMs/Python packages,
 # modifying the base venv config, creating writable temp directories, and
