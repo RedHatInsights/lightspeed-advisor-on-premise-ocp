@@ -41,9 +41,9 @@ click==8.5.0 \
     --hash=sha256:db0a11a58f0511088001db4ad8cb3430a9073f15d4a606ae7094b5a0f76710a7 \
     --hash=sha256:f66c62946660aff70795781b9d5cea3a59e1ed058eb7e74ad74d5b440f89d228
     # via uvicorn
-fastapi==0.143.0 \
-    --hash=sha256:6fc46c3aa69d7385e54c911dd8194fceedda73a5ceba761a29f3d1ea4b03093f \
-    --hash=sha256:c35df904a07e7633231cc92a66e0c265acb70c2ab571d0e2d3545f6b62cf1a42
+fastapi==0.143.5 \
+    --hash=sha256:27109a677c70d1db4e9463239f26815e7cfdb89e7b965fb7ac912ff997d65c4c \
+    --hash=sha256:65f06d29cdf254403d976cb9addd30ca5d3763358b42517f0d607d5b9dabbdc8
     # via -r requirements-in.txt
 h11==0.16.0 \
     --hash=sha256:8833caaba87d9e7581ac951f3e58c6ba22bad26cc4c4d9fd98cb9d88d2a2ca65 \
@@ -125,9 +125,9 @@ setuptools==84.0.0 \
     --hash=sha256:50e2b6526f3d7a6b269a26757b047adc4ef704161f1292305075deb01cac3a9f \
     --hash=sha256:79e42bf896a6cf91932b97d452156b5aa3eb8b78058fe6a95aff3f900d527443
     # via -r requirements-in.txt
-sqlalchemy==2.1.4 \
-    --hash=sha256:06d4e80781849e169ae21fccf4ab11b20c6ef9352ac27f490f4b107618528511 \
-    --hash=sha256:2899940ba2b7a6166b224a0bbde44c54d31ec5d45a7c7b256430b9b7d668e36c
+sqlalchemy==2.1.5 \
+    --hash=sha256:9c15499258c8bde413958f865ca825cf15f60808b40d5935d7a30ac1508112b2 \
+    --hash=sha256:da04e4710c582b3caf93fe7ed15461c881aafd2e69bc26c1a5a1bfda553ab894
     # via
     #   -r requirements-in.txt
     #   alembic
@@ -159,9 +159,9 @@ urllib3==2.8.0 \
     --hash=sha256:4191c4463e905ea9a70c2585f97e0a13166fe4896f4e9bd6b07748f077da7d19 \
     --hash=sha256:cad31091c9f9a672a8ceb53a3c283dc60bdea78a03f6b2b7b6e34765c60c82f2
     # via requests
-uv==0.13.0 \
-    --hash=sha256:3dc96a4637cacfb2aaf5e6233e9fa260e8f9789cf3dac0aa7312d4c2f52a5b28 \
-    --hash=sha256:a5cd948bf272669fde727b1c78b9e636e74b8be50fe3409f67a0cb6008f32e7c
+uv==0.13.1 \
+    --hash=sha256:9f2759c32f61244a23b182e4ace0aba61c71b2fd7a9cff5c8ced9dde1df8cc7e \
+    --hash=sha256:b51549b87df8faf75f0ce6d7be587042d8b554d598f68c69f351e7d06ea2905e
     # via -r requirements-in.txt
 uvicorn==0.54.0 \
     --hash=sha256:1f7a8cb7edeef56218d650b670ac138f077251f24edc5cb1b6f5a6e73a48e2cf \
