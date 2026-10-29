@@ -2,9 +2,9 @@
 #    uv pip compile requirements-in.txt --index-url https://packages.redhat.com/lightwell/python/validated/simple --emit-index-url --generate-hashes --python-version 3.12 --python-platform x86_64-manylinux_2_34 --output-file requirements.txt
 --index-url https://packages.redhat.com/lightwell/python/validated/simple
 
-alembic==1.20.0 \
-    --hash=sha256:b239486d0a96357b95d00c54e25a171ceaf90eea10b2d964312c88c72ca44321 \
-    --hash=sha256:e18e7f8839e12172b94d2d7232f06a48684aeefeccd14a463f58e9911bac4e3f
+alembic==1.20.1 \
+    --hash=sha256:cc188ba523e8a84de74330a48b0f4b0c722ad67919b513972b4d3f1744b5ac08 \
+    --hash=sha256:de6eecac2f84c725d999732311c15d5260e5d413268a38027be90244fb1f547e
     # via -r requirements-in.txt
 annotated-doc==0.0.5 \
     --hash=sha256:249252004889f0b8a0a7cc5ef65e7e28a4e8433dcc6304523ea261f1bb518861 \
@@ -25,9 +25,9 @@ cachecontrol==0.14.4 \
     --hash=sha256:79185110c5169ad098319a18678ed2dca6beeed18199e2b03b00aa052146147f \
     --hash=sha256:b54c95371800fb13b7da80c0464d4365c9e54077a86f8632ebaad8b21309adeb
     # via -r requirements-in.txt
-certifi==2026.10.19 \
-    --hash=sha256:65b7c7831b82c459c9184863ed188a0ce83dc28c8144615a0e653f748630d9ac \
-    --hash=sha256:866eaee085aaaf2f9ed62c7011b18ed441c0c42ccfa853864846e560c215948d
+certifi==2026.10.23 \
+    --hash=sha256:9b02947963eb911178af336c1e2638ee7d5db3a9fb7940da19429220aa4c15a0 \
+    --hash=sha256:fca33d717169d10699150f57847c5fcd4fcd91b1ec089ece793a4cf42926362f
     # via
     #   httpcore
     #   httpx
@@ -41,9 +41,9 @@ click==8.5.0 \
     --hash=sha256:db0a11a58f0511088001db4ad8cb3430a9073f15d4a606ae7094b5a0f76710a7 \
     --hash=sha256:f66c62946660aff70795781b9d5cea3a59e1ed058eb7e74ad74d5b440f89d228
     # via uvicorn
-fastapi==0.151.0 \
-    --hash=sha256:3e26c15a21918b4e18abae2870c73c732dc911c61168ca0c5b1f0e2bffdc0de2 \
-    --hash=sha256:d4bbbbb2075fd2c367bfb3c872c6288d3379212c6bfcb9393493391be37dcec5
+fastapi==0.162.0 \
+    --hash=sha256:40fdc8ec743fde17ddc09d688bd01a0c2cd3ae455efb00ed2f9141d9ea3e3eed \
+    --hash=sha256:d242ac6f329e7d051bc758d1c750166e18f963df56d8ee24f7e3061e3dab4f99
     # via -r requirements-in.txt
 h11==0.16.0 \
     --hash=sha256:8833caaba87d9e7581ac951f3e58c6ba22bad26cc4c4d9fd98cb9d88d2a2ca65 \
@@ -79,9 +79,9 @@ markupsafe==3.0.4 \
     --hash=sha256:96d9f06cd7b18e4413c8d9afbd960dd313ae35040ca28ccb2b4c0c07fed7de8e \
     --hash=sha256:fccf7e8d8d5531fc02217cc5e0959c94da1e3358be1195805ace0d8dde506a44
     # via mako
-msgpack==1.2.3 \
-    --hash=sha256:03631e5b6c9e93b4af9ffcaaee24b99efeee1023d284d8d04699e812e52f849e \
-    --hash=sha256:fd5ffa768a713814e5e86974e020c5b6a46bd867ff8db7b29701b1c58d15cc8f
+msgpack==1.2.4 \
+    --hash=sha256:ae4acb7023d60c7ff1036db601c8fe39c83353a97d01b7774b5bf7890424f2fa \
+    --hash=sha256:ca13b2a052b5a70d59f0b0fa239eea4a5666a3165896edea1b28f5d7b0a6e867
     # via cachecontrol
 opentelemetry-api==1.45.1 \
     --hash=sha256:0a2ce8408e4b9c19d445d8c8dfa6c3f1e157896c933a51850bd60288340e83a5 \
@@ -91,9 +91,9 @@ packaging==26.3 \
     --hash=sha256:0a627d48c77017685d8d0cfb6199771992d13b96aff508570339b33df76591db \
     --hash=sha256:7f842d04d8ff1e237ebeb55d8bc97b78108677f275c871d9b234210aa7d05bed
     # via wheel
-pip==26.2.1 \
-    --hash=sha256:5143be0aa19d438d719338f8320832a239b1900e1f901f426846cc7cdb699f6b \
-    --hash=sha256:f3005c891485b6fbdc2ea50f7a1b710b650436f75f1468b1b747fe40f0372e8b
+pip==26.2.2 \
+    --hash=sha256:428a0defceed14ad9efd70c8109b881c206a5ea28f24f20a34cd3545c35f540b \
+    --hash=sha256:d9f2b1f324c9144c3ef9d1abb88b45958b126ff3a9b51f2d7f13a282ddc1c58c
     # via -r requirements-in.txt
 pydantic==2.14.1 \
     --hash=sha256:047d6311bac9a36adc76a475c88a82c2bd1b249e5db4478f148b682dd41782ab \
@@ -121,19 +121,19 @@ requests==2.34.2 \
     --hash=sha256:1c84e3951f2820a4a8480a1a4e5a98b9be5f9fae6472f1d23873b8d8ab2c2f5d \
     --hash=sha256:89b68cb3f13fb6f93ce4dbbab5581cec33e08691840e09c8a0cefa1d9ed4b1f2
     # via cachecontrol
-setuptools==84.2.0 \
-    --hash=sha256:906e8d14689ae2b5813cc4417c187013902377a994b73ab08d47ec7073846e8b \
-    --hash=sha256:90bab2fe7435c4825a811ff488be2d57872d238546770e2bb9970a26df39077b
+setuptools==84.2.1 \
+    --hash=sha256:0e554dded44ea3c0b907f202be6faf98517f45de5a6e0731b089e2f8a2b3e7f1 \
+    --hash=sha256:72ee2895b68c98bd02df9898683ab174f126895cdd4270d4c77d8f4050e03330
     # via -r requirements-in.txt
-sqlalchemy==2.1.5 \
-    --hash=sha256:9c15499258c8bde413958f865ca825cf15f60808b40d5935d7a30ac1508112b2 \
-    --hash=sha256:da04e4710c582b3caf93fe7ed15461c881aafd2e69bc26c1a5a1bfda553ab894
+sqlalchemy==2.1.6 \
+    --hash=sha256:8f1410865bd906ea812dfe8a9791d448755fb30e3c3ead33657b53247070ebf7 \
+    --hash=sha256:e467c34c236e832826503870577c20748c9ea21881895881de395f2e1cb52265
     # via
     #   -r requirements-in.txt
     #   alembic
-starlette==1.9.0 \
-    --hash=sha256:0a2337c7bb2cf6be78f6bba1847ceef77076953b7d77e0c8340234ee4685d89c \
-    --hash=sha256:ba438be8016a931909bf56038eee61cdda3b835abe75faa514c1614556058007
+starlette==1.10.0 \
+    --hash=sha256:0bacae2e638db33b473a4b982afe2072ebcddeee6e05c791d7988a98fc8a967b \
+    --hash=sha256:b7b3c85ff52203ef8d38f40511649efe5d38dc89aaa2d114270b6329a168563f
     # via fastapi
 typing-extensions==4.16.0 \
     --hash=sha256:1499f43887b0cb15e8e4762c88946d1c95e63f537afb0bcb30d435ac165a481f \
@@ -159,9 +159,9 @@ urllib3==2.8.0 \
     --hash=sha256:4191c4463e905ea9a70c2585f97e0a13166fe4896f4e9bd6b07748f077da7d19 \
     --hash=sha256:cad31091c9f9a672a8ceb53a3c283dc60bdea78a03f6b2b7b6e34765c60c82f2
     # via requests
-uv==0.13.3 \
-    --hash=sha256:0c4803f8ba77e13e74c436cdcf98e9489d05bb8f43f94d4f4075c6f26ab64d54 \
-    --hash=sha256:8a8d11027412c941815968e532d132297c3cf533cc3d40ca7ce2bbd5c7de6a8e
+uv==0.13.6 \
+    --hash=sha256:3379d0d651a78a9bc45cae6c843c2193901ccb6e5e9f78c8fff72116a10955d5 \
+    --hash=sha256:4d1de03b1513270e1b4003dc77eb48a1d18838422148b0ff1e39b535e5b70217
     # via -r requirements-in.txt
 uvicorn==0.54.0 \
     --hash=sha256:1f7a8cb7edeef56218d650b670ac138f077251f24edc5cb1b6f5a6e73a48e2cf \
