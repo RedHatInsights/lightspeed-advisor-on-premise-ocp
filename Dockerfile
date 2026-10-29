@@ -27,7 +27,7 @@ WORKDIR /app
 # /usr/lib*/python3.12/site-packages; make them visible inside /opt/venv by
 # enabling system site packages.
 # hadolint ignore=DL3041
-RUN microdnf install --nodocs -y python3.12-psycopg2 && \
+RUN microdnf install --nodocs -y python3.12-pip python3.12-psycopg2 && \
     microdnf clean all && \
     rm -rf /var/cache/dnf /var/cache/yum /var/tmp/* && \
     sed -i 's/^include-system-site-packages = false$/include-system-site-packages = true/' \
@@ -44,7 +44,8 @@ RUN UV_VERSION="$(sed -n 's/^uv==\([^[:space:]\\]*\).*/\1/p' requirements.txt)" 
     if [ -f /cachi2/cachi2.env ]; then \
         . /cachi2/cachi2.env; \
     fi && \
-    pip install --no-cache-dir --no-deps "uv==${UV_VERSION}"
+
+    /usr/bin/python3.12 -m pip install --no-cache-dir --no-deps "uv==${UV_VERSION}"
 
 # --- Install Python dependencies -------------------------------------------
 # Konflux/Hermeto uses /cachi2 prefetched wheels and installs fully offline.
@@ -67,7 +68,9 @@ RUN if [ -f /cachi2/cachi2.env ]; then \
     # Cleanup Python deps install
     pip uninstall -y uv pip setuptools wheel packaging && \
     find "${VIRTUAL_ENV}" -type d -name __pycache__ -prune -exec rm -rf '{}' + && \
-    rm -rf /root/.cache /tmp/*
+    rm -rf /root/.cache /tmp/* && \
+    microdnf remove -y python3.12-pip
+
 
 # --- Application runtime files ---------------------------------------------
 # Copy only the runtime inputs. Test files and local development artifacts are
