@@ -11,6 +11,13 @@ arches:
     name: libpq
     evr: 13.23-3.el9_8
     sourcerpm: libpq-13.23-3.el9_8.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/p/python3.12-pip-23.2.1-5.el9.noarch.rpm
+    repoid: rhel-9-for-x86_64-appstream-rpms
+    size: 3370313
+    checksum: sha256:7abdc28c07f4286ef1da5a5033266f89b7aed4d61cb13b9fec3cfa7576ed6fde
+    name: python3.12-pip
+    evr: 23.2.1-5.el9
+    sourcerpm: python3.12-pip-23.2.1-5.el9.src.rpm
   - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/p/python3.12-psycopg2-2.9.6-2.el9.x86_64.rpm
     repoid: rhel-9-for-x86_64-appstream-rpms
     size: 219510
@@ -18,5 +25,12 @@ arches:
     name: python3.12-psycopg2
     evr: 2.9.6-2.el9
     sourcerpm: python3.12-psycopg2-2.9.6-2.el9.src.rpm
+  - url: https://cdn.redhat.com/content/dist/rhel9/9/x86_64/appstream/os/Packages/p/python3.12-setuptools-68.2.2-5.el9_6.noarch.rpm
+    repoid: rhel-9-for-x86_64-appstream-rpms
+    size: 1654905
+    checksum: sha256:6a7ea24faa6a5f2686b5e5b103a09f63b929b9bef70f1392dfea4ec5ef57c819
+    name: python3.12-setuptools
+    evr: 68.2.2-5.el9_6
+    sourcerpm: python3.12-setuptools-68.2.2-5.el9_6.src.rpm
   source: []
   module_metadata: []
