@@ -27,7 +27,7 @@ WORKDIR /app
 # /usr/lib*/python3.12/site-packages; make them visible inside /opt/venv by
 # enabling system site packages.
 # hadolint ignore=DL3041
-RUN microdnf install --nodocs -y python3.12-psycopg2 && \
+RUN microdnf install --nodocs -y python3.12-psycopg2 python3.12-pip && \
     microdnf clean all && \
     rm -rf /var/cache/dnf /var/cache/yum /var/tmp/* && \
     sed -i 's/^include-system-site-packages = false$/include-system-site-packages = true/' \
@@ -44,7 +44,7 @@ RUN UV_VERSION="$(sed -n 's/^uv==\([^[:space:]\\]*\).*/\1/p' requirements.txt)" 
     if [ -f /cachi2/cachi2.env ]; then \
         . /cachi2/cachi2.env; \
     fi && \
-    pip install --no-cache-dir --no-deps "uv==${UV_VERSION}"
+    python -m pip install --no-cache-dir --no-deps "uv==${UV_VERSION}"
 
 # --- Install Python dependencies -------------------------------------------
 # Konflux/Hermeto uses /cachi2 prefetched wheels and installs fully offline.
