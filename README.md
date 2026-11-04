@@ -38,6 +38,7 @@ Insights on Premise aims to provide recommendations based on Insights archives i
     - [API Documentation](#api-documentation)
   - [Running Locally with Docker Compose](#running-locally-with-docker-compose)
   - [Hermetic Builds](#hermetic-builds)
+    - [Lightwell authentication](#lightwell-authentication)
     - [Regenerating requirements.txt](#regenerating-requirementstxt)
     - [Regenerating rpms.lock.yaml](#regenerating-rpmslockyaml)
   - [Building and Pushing Multiarch Image](#building-and-pushing-multiarch-image)
@@ -440,7 +441,44 @@ For purposes of running the addon locally without need for the cluster, we maint
 
 The Dockerfile is built hermetically by Konflux (network access disabled during the build), using [Hermeto](https://hermetoproject.github.io/hermeto/) to prefetch both pip and RPM dependencies beforehand. See `requirements-in.txt` (source compiled by `uv`), `requirements.txt` (fully-pinned, hashed pip lockfile), and `rpms.in.yaml`/`rpms.lock.yaml` (RPM lockfile).
 
-Konflux/Hermeto pip packages come from Red Hat's **Lightwell validated** index rather than public PyPI. Hermeto picks it up from the `--index-url https://packages.redhat.com/lightwell/python/validated/simple` directive at the top of `requirements.txt`, which `scripts/update_requirements.sh` emits. Authentication for that index is provided by the Tekton `netrc` workspace secret (`obsint-processing-lightwell-netrc` in `.tekton/*.yaml`).
+Konflux/Hermeto pip packages come from Red Hat's **Lightwell validated** index rather than public PyPI. Hermeto picks it up from the `--index-url https://packages.redhat.com/lightwell/python/validated/simple` directive at the top of `requirements.txt`, which `scripts/update_requirements.sh` emits. Authentication for that index is provided by the Tekton `netrc` workspace configured in `.tekton/*.yaml`.
+
+### Lightwell authentication
+
+Repo-specific credential use:
+
+- **Konflux/Hermeto builds** use the Tekton `netrc` workspace configured in
+  `.tekton/insights-on-prem-pull-request.yaml` and
+  `.tekton/insights-on-prem-push.yaml`.
+- **Local lockfile regeneration** with `scripts/update_requirements.sh` needs a
+  `.netrc` entry for `packages.redhat.com`. Local `podman build` does not need
+  Lightwell credentials because the Dockerfile strips the private index URL and
+  hashes when `/cachi2` is absent.
+
+Expected `.netrc` shape:
+
+```netrc
+machine packages.redhat.com
+  login USERNAME_FROM_TERMS_BASED_REGISTRY_TOKEN
+  password PASSWORD_OR_TOKEN_FROM_TERMS_BASED_REGISTRY_TOKEN
+```
+
+Do not commit `.netrc` files or paste token values into issues, pull requests,
+or logs. To check credentials locally, use a temporary file and avoid printing
+its contents:
+
+```bash
+curl --netrc-file /tmp/lightwell.netrc --fail --head \
+  https://packages.redhat.com/lightwell/python/validated/simple/
+
+python3 -m pip download --no-deps \
+  --index-url https://packages.redhat.com/lightwell/python/validated/simple \
+  fastapi \
+  -d /tmp/lightwell-test
+```
+
+A `401` or `403` response means the same credentials will fail in Konflux and
+the token or account access needs to be fixed before updating CI credentials.
 
 Python dependencies are prefetched as **wheels wherever they are pure-Python**, and compiled dependencies are avoided where practical:
 
