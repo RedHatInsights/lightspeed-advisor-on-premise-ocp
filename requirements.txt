@@ -14,9 +14,9 @@ annotated-types==0.8.0 \
     --hash=sha256:b804b4b8e1bcec403f2991c484a79af89d51774036ca682244af8bff52dcc01e \
     --hash=sha256:bf9e256ff6e05f23b3e21215905c59f033b746f60751f5272c54190494895f0e
     # via pydantic
-anyio==4.15.1 \
-    --hash=sha256:0ef8fd54849d4cf0b36a15cdd596d734601319c370c64858056e52e07224ef7c \
-    --hash=sha256:af99cb43679a2fef29ece81b9645a4380521edda18e84933e35b5797d73d816a
+anyio==4.16.0 \
+    --hash=sha256:55a8b571c0e3f304878ac6d2fb3b6eb6e02f6770ab07928bb9d2df944d6c61d1 \
+    --hash=sha256:93fe601cd0b07f1be23d63e7c9c040bbb0fbc8ff9fc205705add4d564b8dfd2c
     # via
     #   httpx
     #   starlette
@@ -83,35 +83,35 @@ msgpack==1.2.4 \
     --hash=sha256:ae4acb7023d60c7ff1036db601c8fe39c83353a97d01b7774b5bf7890424f2fa \
     --hash=sha256:ca13b2a052b5a70d59f0b0fa239eea4a5666a3165896edea1b28f5d7b0a6e867
     # via cachecontrol
-opentelemetry-api==1.45.1 \
-    --hash=sha256:0a2ce8408e4b9c19d445d8c8dfa6c3f1e157896c933a51850bd60288340e83a5 \
-    --hash=sha256:931b0f025a6188a902cd52aada51b2a07d3bc19570c856134d88d5c9e209aca8
+opentelemetry-api==1.45.2 \
+    --hash=sha256:b066d2776c9141786c3cd03d76b7d3c3df476a7e519c96261a25ffa640955562 \
+    --hash=sha256:e4b9182e3200c3557f91f7061ead61640d20da51fe2aea1570ceae1e048835bf
     # via fastapi
 packaging==26.3 \
     --hash=sha256:0a627d48c77017685d8d0cfb6199771992d13b96aff508570339b33df76591db \
     --hash=sha256:7f842d04d8ff1e237ebeb55d8bc97b78108677f275c871d9b234210aa7d05bed
     # via wheel
-pip==26.2.2 \
-    --hash=sha256:428a0defceed14ad9efd70c8109b881c206a5ea28f24f20a34cd3545c35f540b \
-    --hash=sha256:d9f2b1f324c9144c3ef9d1abb88b45958b126ff3a9b51f2d7f13a282ddc1c58c
+pip==26.3 \
+    --hash=sha256:4c2f908a7ea3631f5f89283333aedc10bbc4ad7ccf9cf088204a45d4ffe27cb5 \
+    --hash=sha256:e796ea158bbe47c1fd8d1b1fdb016a438ee2c06f3cfbc9de7fd4737306bafb5f
     # via -r requirements-in.txt
-pydantic==2.14.1 \
-    --hash=sha256:047d6311bac9a36adc76a475c88a82c2bd1b249e5db4478f148b682dd41782ab \
-    --hash=sha256:5eb8e3951ddb2175507189312519d6a252d5120fd8733643f8c5c29c7e7cd0e8
+pydantic==2.14.2 \
+    --hash=sha256:2c155cc7613170b65c3a3e3c7be7a4428deeb3c1bc5d32a522694109a5af8413 \
+    --hash=sha256:bebbce9396c0bad57e60f9e0de2bbe6b0b3ea7721f009f4277d424774537d8ee
     # via
     #   -r requirements-in.txt
     #   fastapi
-pydantic-core==2.50.1 \
-    --hash=sha256:89603c718357ef5c9cb7ebf358f34a1c5424d04cfc32b3084215858775046698 \
-    --hash=sha256:eadd2b775a0fa049aaaf0d451f275a408fa0e8eb11c49980f5310c5643f18a6e
+pydantic-core==2.50.2 \
+    --hash=sha256:180be7875975ecbf777e79f0a089359036b4fa5fa9d88ed1433455e3a6ffe100 \
+    --hash=sha256:3ed06acfdb65101f9104c043d84fbdb48c0302075f37ee60418e64712b9e0fe3
     # via pydantic
 python-dotenv==1.2.4 \
     --hash=sha256:a2c735860f413a8ba4a1373b7960767aed1bb83edb398042997e3939a810d8fc \
     --hash=sha256:f48ec618f37ea961421db5223d0a641b7b9d7655280271907df8d1f7a3b72315
     # via uvicorn
-python-multipart==0.0.32 \
-    --hash=sha256:c3b9437beb40a1a6786906bce9d8433f70872b4735b1b2756868cba79cfe1d86 \
-    --hash=sha256:cef0a052e28a0cd502781d1b01754b8ae4550aca27129a948d0f7889b1ec9969
+python-multipart==0.0.33 \
+    --hash=sha256:b9726ca4a3bba15b2441d3b8d02e525aae6df5bfbbe5bb7a3279566727ff93bf \
+    --hash=sha256:d8ec593214c478c87e2f28cb72ff49856161ca82f99cd5ea07d973b67e48966a
     # via -r requirements-in.txt
 pyyaml==6.0.3 \
     --hash=sha256:0ba6b8f2718b99b4eb6218f668565c5e0bc18dff94cbc179b8374f1cfdc60b67 \
@@ -125,9 +125,9 @@ setuptools==84.2.1 \
     --hash=sha256:0e554dded44ea3c0b907f202be6faf98517f45de5a6e0731b089e2f8a2b3e7f1 \
     --hash=sha256:72ee2895b68c98bd02df9898683ab174f126895cdd4270d4c77d8f4050e03330
     # via -r requirements-in.txt
-sqlalchemy==2.1.6 \
-    --hash=sha256:8f1410865bd906ea812dfe8a9791d448755fb30e3c3ead33657b53247070ebf7 \
-    --hash=sha256:e467c34c236e832826503870577c20748c9ea21881895881de395f2e1cb52265
+sqlalchemy==2.1.8 \
+    --hash=sha256:00c7ec920fdbaad5945fbebe94b7f9b2b180db9c83b143d0fefbdf07b450bb11 \
+    --hash=sha256:677171a22b4982e988a33f6cbf2d8a1a2c190e19b6ac1c38c809d51459f86119
     # via
     #   -r requirements-in.txt
     #   alembic
@@ -149,9 +149,9 @@ typing-extensions==4.16.0 \
     #   sqlalchemy
     #   starlette
     #   typing-inspection
-typing-inspection==0.4.4 \
-    --hash=sha256:28f009ec5a076927521e3a483ae7241116dd970a3a88c93902c959489c2eb611 \
-    --hash=sha256:c57453259a72596cd7069b6ce0bee5ce78c2f91d53b534f6e43e7221ff7ffc75
+typing-inspection==0.4.5 \
+    --hash=sha256:a4e247a6f0d4d8e9beae8e44af77a8006277f1be67375ae1c977a3a6d240b0f9 \
+    --hash=sha256:e5cf96883d695de2cdafed19523173c3df85711380b12bd3e9061519956c955d
     # via
     #   fastapi
     #   pydantic
@@ -159,9 +159,9 @@ urllib3==2.8.0 \
     --hash=sha256:4191c4463e905ea9a70c2585f97e0a13166fe4896f4e9bd6b07748f077da7d19 \
     --hash=sha256:cad31091c9f9a672a8ceb53a3c283dc60bdea78a03f6b2b7b6e34765c60c82f2
     # via requests
-uv==0.13.6 \
-    --hash=sha256:3379d0d651a78a9bc45cae6c843c2193901ccb6e5e9f78c8fff72116a10955d5 \
-    --hash=sha256:4d1de03b1513270e1b4003dc77eb48a1d18838422148b0ff1e39b535e5b70217
+uv==0.13.7 \
+    --hash=sha256:31e0fdb9acd38a80b04dff2c01342378b208f883745866e885e7951e4bf7ae04 \
+    --hash=sha256:666b261a7d61112f1c2349197547d12a05b02597f5de784ff0297fcbf5368ae6
     # via -r requirements-in.txt
 uvicorn==0.54.0 \
     --hash=sha256:1f7a8cb7edeef56218d650b670ac138f077251f24edc5cb1b6f5a6e73a48e2cf \
@@ -175,9 +175,9 @@ watchfiles==1.3.0 \
     --hash=sha256:dc17e4ca633b59f4a0900ab623df435c7c8237e1f40802aea0dc27bc2c9cf241 \
     --hash=sha256:ee9656140951beac2828b41615278d2aa0a2e1040403a4c5f6c671f24ab83801
     # via uvicorn
-websockets==17.3 \
-    --hash=sha256:9745eab31a008ee3a96d0372a9f23358ee8c9f273b7cb4e918f65d1848d9810d \
-    --hash=sha256:f65410d9b47f9754de601c68da8325fce3dde98675a810bf11e26c2daef8fad9
+websockets==17.4 \
+    --hash=sha256:109cf3b9c5261c3ed2d07f0371c41c5661cf889e1f9373a8e42fa9bf07372854 \
+    --hash=sha256:32e5e511292feaaeabe991d984f827ad1af69fb07c3c9e2a48b2953872862d5b
     # via uvicorn
 wheel==0.48.0 \
     --hash=sha256:03a73b5be6c2cb22f7611766eaf2ffc98940fddb8682a1f6a676b37b44e28eb9 \
