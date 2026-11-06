@@ -151,6 +151,21 @@ The Insights section of that page has four panels:
 
 To view update-risk predictions served by **MCE console**, open **Infrastructure -> Clusters**, select a managed cluster, choose **Actions -> Upgrade cluster**, and select an available target version. The response is displayed in the update modal's **Update risks** section.
 
+### Verifying the ACM Console Consumes Insights on Prem
+
+To confirm with that the console and client consume data from Insights on Prem instead of console.redhat.com, login to ACM cluster and check that the following all point at `insights-on-prem-proxy.insights-on-prem.svc:8443`:
+
+```bash
+# insights-client upload URL (set via MCH overrides)
+oc get deployment insights-client -n open-cluster-management -o jsonpath='{.spec.template.spec.containers[0].env[?(@.name=="CCX_SERVER")].value}'
+
+# ACM console update risk predictions URL
+oc get configmap console-config -n open-cluster-management -o jsonpath='{.data.UPGRADE_RISKS_PREDICTION_URL}'
+
+# MCE console update risk predictions URL
+oc get configmap console-mce-config -n multicluster-engine -o jsonpath='{.data.UPGRADE_RISKS_PREDICTION_URL}'
+```
+
 ## On-Demand Data Gathering
 
 On-demand data gathering allows triggering Insights data collection outside the regular periodic schedule. Instead of waiting for the next periodic upload (default 2h), you can request an immediate gather-and-upload cycle and get results for that specific request.
