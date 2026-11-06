@@ -512,14 +512,15 @@ prefetch. If `uv` reports "no version of *X*", check what the index actually car
 (`curl -sS https://packages.redhat.com/lightwell/python/validated/simple/<pkg>/`) and pin to
 that version — the index is curated and often carries only one.
 
-`--upgrade` is there for **correctness, not freshness**, and must not be dropped. Red Hat
+`--upgrade` is enabled by default through `UV_PIP_COMPILE_UPGRADE=1` for **correctness, not freshness**. Red Hat
 rebuilds wheels with a build tag (`certifi-2026.6.17-0-py3-none-any.whl`), so their hashes
 differ from PyPI's for the same version. `uv` reads the existing `requirements.txt` as
 resolution preferences *including its `--hash` lines*, so without `--upgrade` any package
 whose version doesn't change silently keeps its old hashes — and `pip install` (which runs in
 hash-checking mode because every line has a `--hash`) then fails the hermetic build with
 `THESE PACKAGES DO NOT MATCH THE HASHES`. The trade-off is that each run re-resolves every
-package to the newest version the index carries, so review the diff before committing.
+package to the newest version the index carries, so review the diff before committing. Use
+`UV_PIP_COMPILE_UPGRADE=0` only when intentionally preserving current pins for a debug/repro run.
 
 `requirements.txt` is the fully-pinned, hashed runtime lockfile. There is no
 `requirements-build.txt`: the Hermeto pip prefetch is configured to prefer binary wheels
