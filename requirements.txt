@@ -125,9 +125,9 @@ setuptools==84.2.1 \
     --hash=sha256:0e554dded44ea3c0b907f202be6faf98517f45de5a6e0731b089e2f8a2b3e7f1 \
     --hash=sha256:72ee2895b68c98bd02df9898683ab174f126895cdd4270d4c77d8f4050e03330
     # via -r requirements-in.txt
-sqlalchemy==2.1.8 \
-    --hash=sha256:00c7ec920fdbaad5945fbebe94b7f9b2b180db9c83b143d0fefbdf07b450bb11 \
-    --hash=sha256:677171a22b4982e988a33f6cbf2d8a1a2c190e19b6ac1c38c809d51459f86119
+sqlalchemy==2.1.6 \
+    --hash=sha256:8f1410865bd906ea812dfe8a9791d448755fb30e3c3ead33657b53247070ebf7 \
+    --hash=sha256:e467c34c236e832826503870577c20748c9ea21881895881de395f2e1cb52265
     # via
     #   -r requirements-in.txt
     #   alembic
@@ -149,9 +149,9 @@ typing-extensions==4.16.0 \
     #   sqlalchemy
     #   starlette
     #   typing-inspection
-typing-inspection==0.4.5 \
-    --hash=sha256:a4e247a6f0d4d8e9beae8e44af77a8006277f1be67375ae1c977a3a6d240b0f9 \
-    --hash=sha256:e5cf96883d695de2cdafed19523173c3df85711380b12bd3e9061519956c955d
+typing-inspection==0.4.4 \
+    --hash=sha256:28f009ec5a076927521e3a483ae7241116dd970a3a88c93902c959489c2eb611 \
+    --hash=sha256:c57453259a72596cd7069b6ce0bee5ce78c2f91d53b534f6e43e7221ff7ffc75
     # via
     #   fastapi
     #   pydantic

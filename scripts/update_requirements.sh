@@ -23,13 +23,14 @@
 #   --emit-index-url  write the "--index-url ..." directive into requirements.txt.
 #                     Without it the directive is dropped and Hermeto falls back to
 #                     PyPI during dependency prefetch.
-#   --upgrade         required for correctness, not freshness. uv reads the existing
-#                     output file as resolution preferences *including its --hash
-#                     lines*, so without --upgrade any package whose version doesn't
-#                     change keeps its old hashes. Red Hat rebuilds wheels, so those
-#                     hashes would not match this index and the hermetic build would
-#                     fail hash checking. The cost is that each run re-resolves to the
-#                     newest version the index carries.
+#   --upgrade         enabled by default through UV_PIP_COMPILE_UPGRADE=1.
+#                     uv reads the existing output file as resolution preferences
+#                     *including its --hash lines*, so without --upgrade a package
+#                     whose version does not change can keep old hashes. Red Hat
+#                     rebuilds wheels, so stale hashes would not match this index
+#                     and the hermetic build would fail hash checking. Set
+#                     UV_PIP_COMPILE_UPGRADE=0 only when intentionally preserving
+#                     the current lockfile versions for debugging/reproducibility.
 
 set -euo pipefail
 
@@ -47,11 +48,24 @@ fi
 # differ from PyPI's for the same version: the lockfile has to be *resolved* against
 # this index, not merely annotated with it.
 INDEX_URL="${INDEX_URL:-https://packages.redhat.com/lightwell/python/validated/simple}"
+UV_PIP_COMPILE_UPGRADE="${UV_PIP_COMPILE_UPGRADE:-1}"
+UV_PIP_COMPILE_UPGRADE_ARGS=()
+case "${UV_PIP_COMPILE_UPGRADE}" in
+    1|true|TRUE|yes|YES|on|ON)
+        UV_PIP_COMPILE_UPGRADE_ARGS=(--upgrade)
+        ;;
+    0|false|FALSE|no|NO|off|OFF|"")
+        ;;
+    *)
+        echo "UV_PIP_COMPILE_UPGRADE must be 1/true/yes/on or 0/false/no/off" >&2
+        exit 1
+        ;;
+esac
 
 uv pip compile requirements-in.txt \
     --index-url "${INDEX_URL}" \
     --emit-index-url \
-    --upgrade \
+    "${UV_PIP_COMPILE_UPGRADE_ARGS[@]}" \
     --generate-hashes \
     --python-version 3.12 \
     --python-platform x86_64-manylinux_2_34 \
