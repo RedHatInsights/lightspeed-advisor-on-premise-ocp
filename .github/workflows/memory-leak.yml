@@ -1,0 +1,165 @@
+name: Memory Leak Check
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  memory-leak-pr:
+    name: Real archive memory check (200 archives)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: insights
+          POSTGRES_USER: insights
+          POSTGRES_PASSWORD: insights
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U insights"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      REPORT_DIR: /tmp/iop-memory-leak-pr
+      MEMORY_MAX_RSS_DELTA_MIB: "125"
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_DB: insights
+      POSTGRES_USER: insights
+      POSTGRES_PASSWORD: insights
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-test.txt
+
+      - name: Initialize report directory
+        run: |
+          mkdir -p "${REPORT_DIR}"
+
+      - name: Install dependencies
+        run: |
+          set -o pipefail
+          {
+            python -m pip install --upgrade pip
+            python -m pip install -r requirements-test.txt 'psycopg[binary]' psycopg2-binary matplotlib
+          } 2>&1 | tee "${REPORT_DIR}/dependency-install.log"
+
+      - name: Create CI leak-test archives
+        run: |
+          # The application currently reads config.yml from the working
+          # directory. For this CI job, use an alternative config that does not
+          # load the production ccx_rules_ocp package/rules.
+          cp ci/memory-leak-config.yml config.yml
+
+          mkdir -p content .ci/archives
+
+          for i in $(seq 1 9); do
+            archive_root="$(mktemp -d)"
+            mkdir -p "${archive_root}/config"
+            printf '00000000-0000-0000-0000-%012d\n' "${i}" > "${archive_root}/config/id"
+            tar -C "${archive_root}" -czf ".ci/archives/${i}.tar.gz" .
+            rm -rf "${archive_root}"
+          done
+
+      - name: Run memory leak investigation
+        run: |
+          start=$(date +%s)
+          set +e
+          ITERATIONS=200 \
+          SAMPLE_INTERVAL=5 \
+          DRAIN_TIMEOUT=1800 \
+          MOCK_ARCHIVE_PROCESSING=false \
+          ARCHIVE_QUEUE_SIZE=0 \
+          ARCHIVE_DIR=.ci/archives \
+          REPORT_DIR="${REPORT_DIR}" \
+          scripts/run-leak-investigation.sh 2>&1 | tee "${REPORT_DIR}/run-leak-investigation.stdout.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          end=$(date +%s)
+          echo "DURATION_SECONDS=$((end - start))" | tee "${REPORT_DIR}/duration.txt"
+          exit "${status}"
+
+      - name: Check leak summary availability
+        id: leak-summary
+        if: always()
+        run: |
+          if [[ -s "${REPORT_DIR}/summary.txt" ]] && grep -q '^rss_delta_mib=' "${REPORT_DIR}/summary.txt"; then
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+          else
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+            echo "WARNING: ${REPORT_DIR}/summary.txt was not generated or is incomplete"
+          fi
+
+      - name: Generate memory usage graphs
+        if: always() && steps.leak-summary.outputs.exists == 'true'
+        run: |
+          mkdir -p "${REPORT_DIR}"
+          if [[ -s "${REPORT_DIR}/memory.log" ]]; then
+            python scripts/plot_memory.py "${REPORT_DIR}" "${REPORT_DIR}" 2>&1 | tee "${REPORT_DIR}/plot-memory.log"
+          else
+            echo "WARNING: ${REPORT_DIR}/memory.log was not found or is empty; skipping graph generation" | tee "${REPORT_DIR}/plot-memory.log"
+          fi
+
+      - name: Check memory leak threshold
+        if: always() && steps.leak-summary.outputs.exists == 'true'
+        run: |
+          set +e
+          scripts/check-leak-summary.py "${REPORT_DIR}/summary.txt" 2>&1 | tee "${REPORT_DIR}/check-leak-summary.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          exit "${status}"
+
+      - name: Collect diagnostics
+        if: always()
+        run: |
+          mkdir -p "${REPORT_DIR}"
+          cp config.yml "${REPORT_DIR}/config.used.yml" 2>/dev/null || true
+          {
+            echo "date=$(date --iso-8601=seconds)"
+            echo "github_ref=${GITHUB_REF}"
+            echo "github_sha=${GITHUB_SHA}"
+            echo "pwd=$(pwd)"
+            echo "--- workspace ---"
+            ls -la
+            echo "--- generated archives ---"
+            find .ci -maxdepth 3 -type f -printf '%p %s bytes\n' 2>/dev/null || true
+            echo "--- python ---"
+            python --version || true
+            python -m pip freeze || true
+            echo "--- docker containers ---"
+            docker ps -a || true
+            echo "--- docker logs ---"
+            while IFS= read -r container; do
+              echo "--- logs: ${container} ---"
+              docker logs "${container}" || true
+            done < <(docker ps -aq 2>/dev/null || true)
+          } > "${REPORT_DIR}/diagnostics.log" 2>&1
+
+      - name: Upload leak investigation artifacts
+        id: upload-leak-artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: memory-leak-pr-report
+          path: |
+            /tmp/iop-memory-leak-pr/**
+            .ci/archives/*.tar.gz
+            ci/memory-leak-config.yml
+          if-no-files-found: warn

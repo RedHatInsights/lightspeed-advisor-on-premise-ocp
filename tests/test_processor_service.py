@@ -256,6 +256,34 @@ def test_save_results_empty_rule_hits(processor_service, database):
     assert len(rule_hits) == 0
 
 
+def test_process_archive_can_bypass_analysis_with_monkeypatch(
+    processor_service, database
+):
+    """Test processing can be stubbed in tests without service-only config flags."""
+    results_json = _make_results_json(
+        [("ccx_rules_ocp.external.rules.mock_rule.report", "MOCK_RULE_HIT")]
+    )
+
+    with patch.object(
+        processor_service,
+        "process_with_insights_core",
+        return_value=("mock-cluster-123", results_json),
+    ) as process_mock:
+        cluster_id, count = processor_service.process_archive(
+            database, "/fake/archive.tar.gz", REQUEST_ID
+        )
+
+    process_mock.assert_called_once_with("/fake/archive.tar.gz")
+    assert cluster_id == "mock-cluster-123"
+    assert count == 1
+
+    report = database.query(Report).filter_by(cluster="mock-cluster-123").first()
+    assert report is not None
+    rule_hit = database.query(RuleHit).filter_by(cluster_id="mock-cluster-123").first()
+    assert rule_hit is not None
+    assert rule_hit.error_key == "MOCK_RULE_HIT"
+
+
 @patch("app.services.processor_service.extract")
 @patch("app.services.processor_service.initialize_broker")
 @patch("app.services.processor_service.dr")

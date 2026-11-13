@@ -1,0 +1,53 @@
+# CI-only configuration for the GitHub memory-leak workflow.
+#
+# The production config loads ccx_rules_ocp rule packages from the runtime image.
+# PR jobs run on stock GitHub runners, so this config intentionally loads no
+# additional rule package. The service still processes uploaded archives through
+# insights-core, but with the default/empty component set available in that CI
+# environment.
+
+service:
+  postgres_host: localhost
+  postgres_port: 5432
+  postgres_db: insights
+  postgres_user: insights
+  postgres_password: insights
+  max_file_size: 104857600
+  archive_queue_size: 0
+  temp_upload_dir: /tmp/insights-uploads
+  extract_timeout_seconds: 300
+  format: insights.formats._json.JsonFormat
+  target_components: []
+  unpacked_archive_size_limit: -1
+  db_retention_hours: 24
+  db_cleanup_interval_minutes: 60
+
+plugins:
+  packages: []
+  configs: []
+
+logging:
+  version: 1
+  disable_existing_loggers: false
+  handlers:
+    default:
+      level: INFO
+      class: logging.StreamHandler
+      stream: ext://sys.stdout
+      formatter: brief
+  formatters:
+    brief:
+      format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  root:
+    level: INFO
+    handlers:
+      - default
+  loggers:
+    insights:
+      level: WARNING
+    insights.core.dr:
+      level: ERROR
+    sqlalchemy.engine:
+      level: WARNING
+    app:
+      level: INFO
