@@ -41,17 +41,24 @@ COPY requirements.txt .
 # Extract the pinned uv version and install just that wheel first so later
 # dependency installation can consistently use uv.
 RUN UV_VERSION="$(sed -n 's/^uv==\([^[:space:]\\]*\).*/\1/p' requirements.txt)" && \
-    if [ -f /cachi2/cachi2.env ]; then \
+    if [ -f /prefetch/prefetch.env ]; then \
+        . /prefetch/prefetch.env; \
+    elif [ -f /cachi2/cachi2.env ]; then \
         . /cachi2/cachi2.env; \
     fi && \
     python -m pip install --no-cache-dir --no-deps "uv==${UV_VERSION}"
 
 # --- Install Python dependencies -------------------------------------------
-# Konflux/Hermeto uses /cachi2 prefetched wheels and installs fully offline.
-# Local builds do not have /cachi2, so uv overrides the Lightwell index with
-# public PyPI and ignores Lightwell hashes. Build-only packaging tools are
-# removed afterwards to keep the runtime image lean.
-RUN if [ -f /cachi2/cachi2.env ]; then \
+# Konflux/Hermeto uses /prefetch (legacy /cachi2) prefetched wheels and installs
+# fully offline. Local builds do not have that mount, so uv overrides the
+# Lightwell index with public PyPI and ignores Lightwell hashes. Build-only
+# packaging tools are removed afterwards to keep the runtime image lean.
+RUN if [ -f /prefetch/prefetch.env ]; then \
+        . /prefetch/prefetch.env && \
+        export UV_OFFLINE=1 && \
+        export UV_FIND_LINKS="${PIP_FIND_LINKS}" && \
+        UV_INDEX_ARGS="--no-index"; \
+    elif [ -f /cachi2/cachi2.env ]; then \
         . /cachi2/cachi2.env && \
         export UV_OFFLINE=1 && \
         export UV_FIND_LINKS="${PIP_FIND_LINKS}" && \

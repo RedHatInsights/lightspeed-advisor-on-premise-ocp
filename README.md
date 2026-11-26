@@ -468,7 +468,7 @@ Repo-specific credential use:
 - **Local lockfile regeneration** with `scripts/update_requirements.sh` needs a
   `.netrc` entry for `packages.redhat.com`. Local `podman build` does not need
   Lightwell credentials because the Dockerfile strips the private index URL and
-  hashes when `/cachi2` is absent.
+  hashes when Hermeto's prefetch mount (`/prefetch`, legacy `/cachi2`) is absent.
 
 Expected `.netrc` shape:
 
@@ -544,9 +544,10 @@ than built from source, and no build-backend lockfile is required.
 
 The lockfile is not filtered: everything the resolution produces is pinned, even where the
 base image's `/opt/venv` already ships a copy. Local `podman build` runs do not have
-Hermeto's `/cachi2` directory, so the Dockerfile strips the private index URL and hashes from
-`requirements.txt` and installs the same pinned versions from public PyPI. Konflux/Hermeto
-builds continue to install the hashed lockfile fully offline from prefetched Lightwell wheels.
+Hermeto's `/prefetch` directory (legacy `/cachi2`), so the Dockerfile strips the private index
+URL and hashes from `requirements.txt` and installs the same pinned versions from public PyPI.
+Konflux/Hermeto builds continue to install the hashed lockfile fully offline from prefetched
+Lightwell wheels.
 
 ### Regenerating rpms.lock.yaml
 
