@@ -1,12 +1,12 @@
-# Insights on Premise
+# Lightspeed Advisor Self-Managed
 
-Insights on Premise aims to provide recommendations based on Insights archives in environments that **cannot reach console.redhat.com**. Specifically it is designed to be deployed in ACM clusters and for providing rule-based recommendations for managed clusters.
+Lightspeed Advisor Self-Managed aims to provide recommendations based on Insights archives in environments that **cannot reach console.redhat.com**. Specifically it is designed to be deployed in ACM clusters and for providing rule-based recommendations for managed clusters.
 
-![Insights on Prem - High-level overview of the architecture](docs/insights-on-prem-overview.png)
+![Lightspeed Advisor Self-Managed - High-level overview of the architecture](docs/lightspeed-advisor-self-managed-overview.png)
 
 ## Contents
 
-- [Insights on Premise](#insights-on-premise)
+- [Lightspeed Advisor Self-Managed](#lightspeed-advisor-self-managed)
   - [Contents](#contents)
   - [Deployment to ACM Cluster](#deployment-to-acm-cluster)
     - [Prerequisites](#prerequisites)
@@ -76,7 +76,7 @@ oc apply -f deploy/
 
 This applies all manifests in `deploy/` to the cluster. It can take a while until all resources are properly deployed.
 
-> **Note:** Installation of Insights on Prem redirects Insights endpoints in the ACM console, MCE console, and Insights Client from console.redhat.com to Insights on Prem deployed on the hub cluster.
+> **Note:** Installation of Lightspeed Advisor Self-Managed redirects Insights endpoints in the ACM console, MCE console, and Insights Client from console.redhat.com to Lightspeed Advisor Self-Managed deployed on the hub cluster.
 
 #### Secrets
 
@@ -136,24 +136,24 @@ Insights recommendations are visible in the cluster console under `Fleet Managem
 https://<CLUSTER_CONSOLE_URL>/multicloud/home/overview
 ```
 
-![ACM Fleet Overview - Insights section showing all panels populated by Insights on Premise](docs/fleet-overview-ui.png)
+![ACM Fleet Overview - Insights section showing all panels populated by Lightspeed Advisor Self-Managed](docs/fleet-overview-ui.png)
 
 The Insights section of that page has four panels:
 
-| Panel                   | Depends on Insights on Prem | Depends on MCO |
+| Panel                   | Depends on Lightspeed Advisor Self-Managed | Depends on MCO |
 | ----------------------- | :-------------------------: | :------------: |
 | Cluster recommendations |             Yes             |       No       |
 | Update risk predictions |             Yes             |      Yes       |
 | Alerts                  |             No              |      Yes       |
 | Failing operators       |             No              |      Yes       |
 
-**Cluster recommendations** are based on `PolicyReport` custom resources created by `insights-client` in each managed cluster's namespace. **Update risk predictions** are served by Insights on Prem, but rely on metrics collected by MCO into Thanos. **Alerts** and **Failing operators** are read directly from Thanos by the ACM console and do not involve Insights on Prem at all.
+**Cluster recommendations** are based on `PolicyReport` custom resources created by `insights-client` in each managed cluster's namespace. **Update risk predictions** are served by Lightspeed Advisor Self-Managed, but rely on metrics collected by MCO into Thanos. **Alerts** and **Failing operators** are read directly from Thanos by the ACM console and do not involve Lightspeed Advisor Self-Managed at all.
 
 To view update-risk predictions served by **MCE console**, open **Infrastructure -> Clusters**, select a managed cluster, choose **Actions -> Upgrade cluster**, and select an available target version. The response is displayed in the update modal's **Update risks** section.
 
-### Verifying the ACM Console Consumes Insights on Prem
+### Verifying the ACM Console Consumes Lightspeed Advisor Self-Managed
 
-To confirm with that the console and client consume data from Insights on Prem instead of console.redhat.com, login to ACM cluster and check that the following all point at `insights-on-prem-proxy.insights-on-prem.svc:8443`:
+To confirm with that the console and client consume data from Lightspeed Advisor Self-Managed instead of console.redhat.com, login to ACM cluster and check that the following all point at `insights-on-prem-proxy.insights-on-prem.svc:8443`:
 
 ```bash
 # insights-client upload URL (set via MCH overrides)
@@ -233,7 +233,7 @@ oc delete job on-demand-test -n openshift-insights
 
 ## Triggering Sample Results
 
-After deploying Insights on Prem on a healthy cluster, the Fleet Overview panels will likely be empty:
+After deploying Lightspeed Advisor Self-Managed on a healthy cluster, the Fleet Overview panels will likely be empty:
 
 ![ACM Fleet Overview - Insights section not showing any results](docs/fleet-overview-empty.png)
 
@@ -300,17 +300,17 @@ oc delete validatingwebhookconfiguration insights-test-webhook
 
 ## Architecture
 
-![Insights on Prem - Architecture diagram](docs/insights-on-prem-architecture.svg)
+![Lightspeed Advisor Self-Managed - Architecture diagram](docs/lightspeed-advisor-self-managed-architecture.svg)
 
 The system consists of hub-side components that process Insights data and per-cluster HAProxy instances that route traffic from managed clusters to the hub.
 
 ### Data Flow
 
-On each managed cluster, the **Insights Operator** (in `openshift-insights`) collects diagnostic archives and sends them to a local **HAProxy** instance (in `insights-on-prem`). HAProxy terminates the local TLS connection and forwards the archive to the hub's **Insights on Prem** service through the **passthrough Route**, authenticating with a client certificate signed by the hub's client CA.
+On each managed cluster, the **Insights Operator** (in `openshift-insights`) collects diagnostic archives and sends them to a local **HAProxy** instance (in `insights-on-prem`). HAProxy terminates the local TLS connection and forwards the archive to the hub's **Lightspeed Advisor Self-Managed** service through the **passthrough Route**, authenticating with a client certificate signed by the hub's client CA.
 
-On the hub, Insights on Prem validates the client certificate, processes the archive using [insights-core](https://github.com/RedHatInsights/insights-core) rules, and stores results in **PostgreSQL**. The **Insights Client** (in `open-cluster-management`) then polls Insights on Prem for processed results and creates `PolicyReport` custom resources, which surface as **cluster recommendations** in the ACM console.
+On the hub, Lightspeed Advisor Self-Managed validates the client certificate, processes the archive using [insights-core](https://github.com/RedHatInsights/insights-core) rules, and stores results in **PostgreSQL**. The **Insights Client** (in `open-cluster-management`) then polls Lightspeed Advisor Self-Managed for processed results and creates `PolicyReport` custom resources, which surface as **cluster recommendations** in the ACM console.
 
-For **upgrade risk predictions**, the ACM and MCE consoles query Insights on Prem, which evaluates alerts and operator conditions retrieved from **Thanos** (in `open-cluster-management-observability`, deployed by the Multicluster Observability Operator).
+For **upgrade risk predictions**, the ACM and MCE consoles query Lightspeed Advisor Self-Managed, which evaluates alerts and operator conditions retrieved from **Thanos** (in `open-cluster-management-observability`, deployed by the Multicluster Observability Operator).
 
 HAProxy is deployed as an ACM managed cluster addon on every managed cluster, including the hub itself (which is self-managed). On the hub, HAProxy also serves as the local endpoint for the ACM console and Insights Client.
 
@@ -322,9 +322,9 @@ The deployment installs the **cert-manager Operator** and creates cert-manager i
 
 | Certificate | Issued by | Scope | Purpose |
 | --- | --- | --- | --- |
-| Server CA | Self-signed bootstrap `ClusterIssuer` | Hub | Signs the server leaf certificate for the Insights on Prem service |
+| Server CA | Self-signed bootstrap `ClusterIssuer` | Hub | Signs the server leaf certificate for the Lightspeed Advisor Self-Managed service |
 | Client CA | Self-signed bootstrap `ClusterIssuer` | Hub | Referenced by ACM's CustomSigner to sign client certificates for managed clusters |
-| Server leaf cert | Namespaced `Issuer` (backed by server CA) | Hub | Used by Insights on Prem for mTLS; includes the Route hostname as a SAN |
+| Server leaf cert | Namespaced `Issuer` (backed by server CA) | Hub | Used by Lightspeed Advisor Self-Managed for mTLS; includes the Route hostname as a SAN |
 | Service-serving cert | [OpenShift service serving certificate](https://docs.redhat.com/en/documentation/openshift_container_platform/4.20/html/security_and_compliance/configuring-certificates#add-service-certificate_service-serving-certificate) (via `service.beta.openshift.io/serving-cert-secret-name` annotation) | Each managed cluster | Used by HAProxy to accept local connections from the Insights Operator |
 | Client cert | ACM CustomSigner (backed by client CA) | Each managed cluster | Used by HAProxy to authenticate to the hub |
 
@@ -332,7 +332,7 @@ cert-manager automatically renews the server-side certificates before expiry. Wh
 
 #### Network Policies
 
-Insights on Prem authenticates clients via mTLS client certificate verification. Since HAProxy is the only component that obtains a client certificate, it is the sole authorized client of the service. HAProxy itself is not exposed outside the cluster, but NetworkPolicies prevent unintended in-cluster traffic from reaching it.
+Lightspeed Advisor Self-Managed authenticates clients via mTLS client certificate verification. Since HAProxy is the only component that obtains a client certificate, it is the sole authorized client of the service. HAProxy itself is not exposed outside the cluster, but NetworkPolicies prevent unintended in-cluster traffic from reaching it.
 
 Two NetworkPolicies restrict ingress to the HAProxy proxy pod (`app: insights-on-prem-proxy`):
 
@@ -351,7 +351,7 @@ The application deploys its own PostgreSQL database. Data older than 24 hours is
 
 ```bash
 # Locally
-docker compose exec postgres psql -U insights -d insights
+docker compose exec postgres psql -U advisor -d lightspeed-advisor
 
 # In cluster
 oc exec -it deployment/insights-postgres -n insights-on-prem -- psql -U insights -d insights
@@ -413,7 +413,7 @@ GET /health
 
 ### API Documentation
 
-When running Insights on Prem locally, you can access documentation via these endpoints:
+When running Lightspeed Advisor Self-Managed locally, you can access documentation via these endpoints:
 
 - Swagger UI: <http://localhost:8000/docs>
 - ReDoc: <http://localhost:8000/redoc>
