@@ -18,25 +18,25 @@ jobs:
       postgres:
         image: postgres:15-alpine
         env:
-          POSTGRES_DB: insights
-          POSTGRES_USER: insights
-          POSTGRES_PASSWORD: insights
+          POSTGRES_DB: lightspeed-advisor
+          POSTGRES_USER: advisor
+          POSTGRES_PASSWORD: advisor
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U insights"
+          --health-cmd "pg_isready -U lightspeed-advisor"
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
 
     env:
-      REPORT_DIR: /tmp/iop-memory-leak-pr
+      REPORT_DIR: /tmp/memory-leak-pr
       MEMORY_MAX_RSS_DELTA_MIB: "125"
       POSTGRES_HOST: localhost
       POSTGRES_PORT: "5432"
-      POSTGRES_DB: insights
-      POSTGRES_USER: insights
-      POSTGRES_PASSWORD: insights
+      POSTGRES_DB: lightspeed-advisor
+      POSTGRES_USER: advisor
+      POSTGRES_PASSWORD: advisor
 
     steps:
       - name: Checkout repository
@@ -147,7 +147,7 @@ jobs:
         with:
           name: memory-leak-pr-report
           path: |
-            /tmp/iop-memory-leak-pr/**
+            /tmp/memory-leak-pr/**
             .ci/archives/*.tar.gz
             ci/memory-leak-config.yml
           if-no-files-found: warn
