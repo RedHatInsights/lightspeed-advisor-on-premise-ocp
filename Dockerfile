@@ -77,12 +77,12 @@ COPY migrations ./migrations
 COPY config.yml .
 
 # --- Runtime filesystem setup ----------------------------------------------
-# The service stages uploaded archives under /tmp/insights-uploads. Keep that
+# The service stages uploaded archives under /tmp/lightspeed-advisor-uploads. Keep that
 # directory writable for the non-root runtime user and OpenShift's arbitrary UID
 # model. The rules content is owned by the inherited base image, so expose it at
 # the expected application path without copying it into a second layer.
-RUN mkdir -p /tmp/insights-uploads && \
-    chmod 777 /tmp/insights-uploads && \
+RUN mkdir -p /tmp/lightspeed-advisor-uploads && \
+    chmod 777 /tmp/lightspeed-advisor-uploads && \
     ln -sf /ccx-rules-ocp/content /app/content
 
 # HTTP and HTTPS ports used by the FastAPI/uvicorn service.
