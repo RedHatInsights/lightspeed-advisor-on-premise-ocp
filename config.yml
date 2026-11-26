@@ -1,14 +1,14 @@
-# Insights On-Premise Configuration
+# Lightspeed Advisor Self-managed Configuration
 
 service:
   postgres_host: localhost
   postgres_port: 5432
-  postgres_db: insights
-  postgres_user: insights
-  postgres_password: insights
+  postgres_db: lightspeed-advisor
+  postgres_user: advisor
+  postgres_password: advisor
   max_file_size: 104857600  # 100MB in bytes
   archive_queue_size: 10  # pending archives waiting for the processor thread
-  temp_upload_dir: /tmp/insights-uploads
+  temp_upload_dir: /tmp/lightspeed-advisor-uploads
   extract_timeout_seconds: 300
   format: ccx_ocp_core.core.formats.json.OCPRecommendationsJsonFormat
 

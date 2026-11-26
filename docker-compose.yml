@@ -3,36 +3,36 @@ version: '3.8'
 services:
   postgres:
     image: postgres:15-alpine
-    container_name: insights-postgres
+    container_name: advisor-postgres
     environment:
-      POSTGRES_DB: insights
-      POSTGRES_USER: insights
-      POSTGRES_PASSWORD: insights
+      POSTGRES_DB: lightspeed-advisor
+      POSTGRES_USER: advisor
+      POSTGRES_PASSWORD: advisor
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U insights"]
+      test: ["CMD-SHELL", "pg_isready -U lightspeed-advisor"]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
-      - insights-network
+      - network
 
   app:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: insights-app
+    container_name: lighstpeed-advisor-app
     environment:
       POSTGRES_HOST: postgres
       POSTGRES_PORT: 5432
-      POSTGRES_DB: insights
-      POSTGRES_USER: insights
-      POSTGRES_PASSWORD: insights
+      POSTGRES_DB: lightspeed-advisor
+      POSTGRES_USER: advisor
+      POSTGRES_PASSWORD: advisor
       MAX_FILE_SIZE: 104857600
-      TEMP_UPLOAD_DIR: /tmp/insights-uploads
+      TEMP_UPLOAD_DIR: /tmp/lightspeed-advisor-uploads
     ports:
       - "8000:8000"
     volumes:
@@ -40,12 +40,12 @@ services:
       - ./migrations:/app/migrations:z
       - ./tests:/app/tests:z
       - ./config.yml:/app/config.yml:z
-      - temp_uploads:/tmp/insights-uploads
+      - temp_uploads:/tmp/lightspeed-advisor-uploads
     depends_on:
       postgres:
         condition: service_healthy
     networks:
-      - insights-network
+      - network
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 volumes:
@@ -53,5 +53,5 @@ volumes:
   temp_uploads:
 
 networks:
-  insights-network:
+  network:
     driver: bridge
